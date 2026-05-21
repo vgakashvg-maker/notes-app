@@ -1,0 +1,11 @@
+node_modules
+.next
+dist
+build
+.gradle
+pnpm-lock.yaml
+packages/android
+
+# Author-formatted markdown lives outside the code style budget.
+**/*.md
+CLAUDE.md
