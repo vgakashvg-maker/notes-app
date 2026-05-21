@@ -7,3 +7,4 @@ export * from "./note.js";
 export * from "./calendar.js";
 export * from "./embedding.js";
 export * from "./user.js";
+export * from "./auth.js";
