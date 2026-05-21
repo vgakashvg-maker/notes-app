@@ -4,3 +4,4 @@ packages:
   - "packages/domain"
   - "packages/auth"
   - "packages/notes"
+  - "packages/editor-schema"
