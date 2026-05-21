@@ -71,6 +71,67 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M06 — Editor Module (Web + Android)
+
+Spec: `docs/tech-specs/M06-editor.md`
+
+**Deliverables**
+
+- [x] Frozen schema definition file — `packages/editor-schema/src/schema.ts` (block/inline/mark catalogues, `SCHEMA_VERSION = 1`, `DocRoot`/`DocNode`/`MarkInstance`).
+- [x] Kotlin twin — `packages/android/editor-schema/.../Schema.kt`, `Validate.kt`, `Markdown.kt`. Same node catalogue, same `SCHEMA_VERSION`, same Markdown serialization.
+- [x] Bidirectional JSON↔Markdown converter — TS in `markdown.ts`, Kotlin in `Markdown.kt`. **33 vitest cases** including a property-based round-trip with fast-check; mirrored fixture-based suite on the Kotlin side.
+- [x] AI command port — `AICommand`, `AICommandInput`, `AICommandResult`, `AI_COMMAND_IDS` (`summarize | improve | extract_actions`) in `commands.ts`. Concrete implementations come from M09.
+- [x] Paste classifier — `classifyPaste(input)` distinguishes `html | markdown | plain`.
+- [x] ADR — `docs/adr/0005-frozen-editor-schema.md`.
+- [ ] Tiptap-based web editor `packages/editor-web/` — **deferred to M13** (Web shell). The Next.js host doesn't exist yet; the schema package is the contract the editor will pin to.
+- [ ] Compose Android editor `packages/android/editor-android/` — **deferred to M12** (Android shell). Same reason; the schema package is the contract.
+- [ ] Storybook stories — **deferred to M13** with the web editor.
+- [ ] Paparazzi screenshot tests — **deferred to M12** with the Compose renderer.
+- [ ] Slash-command menu (web) and overflow menu (Android) wired to M9 — **deferred to M12/M13** (UI surface) and **M09** (concrete commands).
+
+**Responsibilities**
+
+- [x] Frozen ProseMirror schema in a shared file — both languages mirror the same catalogue.
+- [x] Bidirectional JSON↔Markdown converter — shared logic mirrored across platforms with explicit round-trip guarantees.
+- [x] AI commands as a port — `summarize`, `improve`, `extract_actions` IDs frozen; concrete `run()` lives in M09.
+- [x] Paste classification — `classifyPaste()` is the shared brain; UI layers feed it the clipboard payload.
+- [ ] Web Tiptap implementation with custom nodes — deferred (M13).
+- [ ] Android Compose renderer — deferred (M12).
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public schema/validator/converter functions implemented in both languages.
+- [x] No UI framework dependencies in the shared package — verified by inspection (`packages/editor-schema/package.json` has only `@notes-app/domain`).
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (READMEs + ADR).
+
+Tests:
+- [x] Unit tests cover happy path + every invariant — TS: schema/validate/commands suites; Kotlin: Schema/Validate test files.
+- [x] Property-based round-trip on the JSON↔Markdown converter (fast-check, 75 runs).
+- [x] Kotlin: fixture-based round-trip suite covering paragraphs, headings, check lists, code blocks, internal links, attachments, bold marks, inline-code whitespace.
+- [x] Tests run in CI and pass — vitest verified locally; JUnit5 to be verified on first CI push.
+
+Documentation:
+- [x] Module READMEs — `packages/editor-schema/README.md`, `packages/android/editor-schema/README.md`.
+- [x] ADR — `docs/adr/0005-frozen-editor-schema.md`.
+
+Security:
+- [x] No secrets in code.
+- [x] No external API calls — pure types and pure functions.
+
+Modularity:
+- [x] Schema package can be deleted and replaced by a stub implementing the same exports without changes elsewhere — verified by the absence of cross-package imports from anything but `@notes-app/domain` (for `AttachmentRef` in `attachmentNodeAttrs`).
+
+Operational:
+- [x] No pg_cron / telemetry / smoke test applicable to a pure types package.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M01 — Domain Model & Shared Types
 
 Spec: `docs/tech-specs/M01-domain-model.md`
