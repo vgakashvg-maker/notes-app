@@ -3,23 +3,14 @@ name: deploy-web
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - "packages/android/**"
 
-concurrency:
-  group: deploy-web-${{ github.ref }}
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
   deploy:
     name: Build and deploy web to Vercel
     runs-on: ubuntu-latest
-    # The job only runs once the Next.js app has been scaffolded (M06). Until
-    # then the marker file is absent and the job is skipped, keeping the
-    # workflow green on infra-only commits.
-    if: hashFiles('packages/web/next.config.mjs') != ''
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -31,38 +22,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Probe for Next.js app
+        id: probe
+        run: |
+          if [ -f packages/web/next.config.mjs ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Next.js app not scaffolded yet — skipping Vercel deploy. Lands with M13."
+          fi
+
       - name: Setup pnpm
+        if: steps.probe.outputs.ready == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 9.12.0
 
       - name: Setup Node.js
+        if: steps.probe.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: pnpm
 
       - name: Install dependencies
+        if: steps.probe.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Install Vercel CLI
-        if: env.VERCEL_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.VERCEL_TOKEN != ''
         run: pnpm add -g vercel@latest
 
       - name: Pull Vercel env
-        if: env.VERCEL_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.VERCEL_TOKEN != ''
         run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
 
       - name: Build (Vercel)
-        if: env.VERCEL_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.VERCEL_TOKEN != ''
         run: vercel build --prod --token "$VERCEL_TOKEN"
 
       - name: Deploy (Vercel)
-        if: env.VERCEL_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.VERCEL_TOKEN != ''
         run: vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
 
       - name: Upload Sentry source maps
-        if: env.SENTRY_AUTH_TOKEN != '' && env.VERCEL_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.SENTRY_AUTH_TOKEN != '' && env.VERCEL_TOKEN != ''
         run: |
           pnpm dlx @sentry/cli@2 releases new "$GITHUB_SHA"
           pnpm dlx @sentry/cli@2 sourcemaps upload \

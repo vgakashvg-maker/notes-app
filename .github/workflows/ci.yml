@@ -6,9 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   node:
@@ -26,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
           cache: pnpm
 
       - name: Install dependencies
@@ -47,7 +46,6 @@ jobs:
   jvm:
     name: Kotlin tests (JVM)
     runs-on: ubuntu-latest
-    if: hashFiles('packages/android/gradlew') != ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,9 +59,13 @@ jobs:
       - name: Setup Gradle (cache wrapper + dependencies)
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Make gradlew executable
+        working-directory: packages/android
+        run: chmod +x ./gradlew
+
       - name: Gradle test
         working-directory: packages/android
-        run: ./gradlew test --stacktrace
+        run: ./gradlew test --stacktrace --console=plain
 
       - name: Publish JUnit results
         if: always()

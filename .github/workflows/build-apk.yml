@@ -6,11 +6,13 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Signed AAB to Play internal track
     runs-on: ubuntu-latest
-    if: hashFiles('packages/android/gradlew') != ''
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -24,27 +26,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Probe for Android app module
+        id: probe
+        run: |
+          if [ -f packages/android/app/build.gradle.kts ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Android app module not scaffolded yet — skipping release build. Lands with M12."
+          fi
+
       - name: Setup JDK
+        if: steps.probe.outputs.ready == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Setup Gradle
+        if: steps.probe.outputs.ready == 'true'
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Make gradlew executable
+        if: steps.probe.outputs.ready == 'true'
+        working-directory: packages/android
+        run: chmod +x ./gradlew
+
       - name: Decode keystore
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        if: steps.probe.outputs.ready == 'true' && env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > packages/android/release.keystore
           echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/packages/android/release.keystore" >> "$GITHUB_ENV"
 
       - name: Build signed release AAB
+        if: steps.probe.outputs.ready == 'true'
         working-directory: packages/android
         run: ./gradlew bundleRelease
 
       - name: Upload AAB to Play internal track
-        if: env.PLAY_SERVICE_ACCOUNT_JSON != ''
+        if: steps.probe.outputs.ready == 'true' && env.PLAY_SERVICE_ACCOUNT_JSON != ''
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -53,7 +73,7 @@ jobs:
           track: internal
 
       - name: Upload ProGuard mapping to Sentry
-        if: env.SENTRY_AUTH_TOKEN != ''
+        if: steps.probe.outputs.ready == 'true' && env.SENTRY_AUTH_TOKEN != ''
         run: |
           pnpm dlx @sentry/cli@2 upload-proguard \
             --org "$SENTRY_ORG" \
