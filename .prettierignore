@@ -6,6 +6,9 @@ build
 pnpm-lock.yaml
 packages/android
 
+# Supabase Edge Functions are Deno-flavoured.
+supabase
+
 # Author-formatted markdown lives outside the code style budget.
 **/*.md
 CLAUDE.md

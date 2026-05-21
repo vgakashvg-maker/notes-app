@@ -11,6 +11,10 @@ export default [
       "**/build/**",
       "**/.gradle/**",
       "packages/android/**",
+      // Supabase Edge Functions run on Deno with their own globals and
+      // Deno-style imports. Pure logic is in the workspace packages and
+      // gets linted there.
+      "supabase/**",
       "**/*.config.js",
       "**/*.config.mjs",
       "**/*.config.cjs",
