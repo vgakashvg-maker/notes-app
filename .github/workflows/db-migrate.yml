@@ -1,0 +1,49 @@
+name: db-migrate
+
+on:
+  push:
+    tags:
+      - "db-*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Target Supabase environment (staging or prod)"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - prod
+
+jobs:
+  migrate:
+    name: supabase db push --linked
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF_PROD }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD_PROD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Resolve target (manual dispatch override)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ inputs.target }}" = "staging" ]; then
+            echo "SUPABASE_PROJECT_REF=${{ secrets.SUPABASE_PROJECT_REF_STAGING }}" >> "$GITHUB_ENV"
+            echo "SUPABASE_DB_PASSWORD=${{ secrets.SUPABASE_DB_PASSWORD_STAGING }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Link project
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Push migrations
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_REF != ''
+        run: supabase db push --linked

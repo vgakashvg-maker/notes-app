@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Lint, type-check, unit tests (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Format check
+        run: pnpm format:check
+
+  android:
+    name: Lint + tests (Android)
+    runs-on: ubuntu-latest
+    if: hashFiles('packages/android/gradlew') != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle (cache wrapper + dependencies)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Gradle lint
+        working-directory: packages/android
+        run: ./gradlew lint
+
+      - name: Gradle unit tests (JUnit)
+        working-directory: packages/android
+        run: ./gradlew testDebugUnitTest
+
+      - name: Publish JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-junit
+          path: packages/android/**/build/test-results/**/*.xml
+          if-no-files-found: ignore

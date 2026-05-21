@@ -1,0 +1,73 @@
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "packages/android/**"
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy web to Vercel
+    runs-on: ubuntu-latest
+    # The job only runs once the Next.js app has been scaffolded (M06). Until
+    # then the marker file is absent and the job is skipped, keeping the
+    # workflow green on infra-only commits.
+    if: hashFiles('packages/web/next.config.mjs') != ''
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT_WEB: ${{ secrets.SENTRY_PROJECT_WEB }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI
+        if: env.VERCEL_TOKEN != ''
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel env
+        if: env.VERCEL_TOKEN != ''
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Build (Vercel)
+        if: env.VERCEL_TOKEN != ''
+        run: vercel build --prod --token "$VERCEL_TOKEN"
+
+      - name: Deploy (Vercel)
+        if: env.VERCEL_TOKEN != ''
+        run: vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+
+      - name: Upload Sentry source maps
+        if: env.SENTRY_AUTH_TOKEN != '' && env.VERCEL_TOKEN != ''
+        run: |
+          pnpm dlx @sentry/cli@2 releases new "$GITHUB_SHA"
+          pnpm dlx @sentry/cli@2 sourcemaps upload \
+            --release "$GITHUB_SHA" \
+            --org "$SENTRY_ORG" \
+            --project "$SENTRY_PROJECT_WEB" \
+            packages/web/.next
+          pnpm dlx @sentry/cli@2 releases finalize "$GITHUB_SHA"
