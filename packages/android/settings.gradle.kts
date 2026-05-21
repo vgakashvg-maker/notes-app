@@ -18,4 +18,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "notes-android"
 
-include(":core-domain", ":auth-android", ":notes-android", ":editor-schema")
+include(
+    ":core-domain",
+    ":auth-android",
+    ":notes-android",
+    ":editor-schema",
+    ":sync-core",
+)
