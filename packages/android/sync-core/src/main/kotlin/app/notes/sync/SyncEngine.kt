@@ -76,7 +76,11 @@ class DefaultSyncEngine(
     override fun syncStatus(): StateFlow<SyncStatus> = status.asStateFlow()
 
     override suspend fun forcePull() {
-        status.value = SyncStatus.Syncing(SyncDirection.DOWN, itemsRemaining = -1)
+        // itemsRemaining starts at 0 — we don't know the count until the
+        // first PostgREST page comes back, and SyncStatus.Syncing.init
+        // enforces >= 0. The Syncing variant still carries the direction so
+        // the UI can show "syncing down" immediately.
+        status.value = SyncStatus.Syncing(SyncDirection.DOWN, itemsRemaining = 0)
         try {
             puller.pullAll()
             status.value = SyncStatus.Idle
@@ -86,7 +90,7 @@ class DefaultSyncEngine(
     }
 
     override suspend fun forcePush() {
-        status.value = SyncStatus.Syncing(SyncDirection.UP, itemsRemaining = -1)
+        status.value = SyncStatus.Syncing(SyncDirection.UP, itemsRemaining = 0)
         try {
             flusher.drainOnce()
             status.value = SyncStatus.Idle
