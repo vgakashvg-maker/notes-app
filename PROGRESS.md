@@ -71,6 +71,75 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M05 — Sync Engine (Android)
+
+Spec: `docs/tech-specs/M05-sync-engine.md` · explainer: `docs/how-sync-works.md` · policy: `docs/adr/0006-sync-conflict-policy.md`
+
+**Deliverables**
+
+- [x] Pure-Kotlin `sync-core` library — `packages/android/sync-core/` (JVM-only, no Android deps).
+- [x] Ports for the outbox, remote API, realtime channel, local note store, and clock.
+- [x] `ConflictResolver.resolve()` — single pure decision function covering all five branches of the conflict tree.
+- [x] `OutboxFlusher` — drain loop with FIFO ordering, backoff schedule, HTTP-status classification, and process-death revival of stale IN_FLIGHT rows.
+- [x] `Puller` — paged incremental pull with monotonic watermark.
+- [x] `RealtimeMerger` — foreground-bound subscriber that funnels events through the same resolver.
+- [x] `DefaultSyncEngine` — orchestrator exposing `start/stop/forcePull/forcePush/syncStatus/setForegrounded`.
+- [x] `docs/how-sync-works.md` — state machine + conflict decision tree + idempotency narrative.
+- [x] ADR — `docs/adr/0006-sync-conflict-policy.md`.
+- [ ] Room schema mirroring server tables + `sync_outbox` table — **deferred to M12** (Android shell). The M04 server schema is the contract; M12 supplies the DAOs implementing `OutboxStore` and `LocalNoteStore`.
+- [ ] WorkManager `PushWorker` / `PullWorker` — **deferred to M12**. The engine's loops are the brain; M12 wraps them as workers with CONNECTED / UNMETERED constraints.
+- [ ] Supabase Realtime SDK binding — **deferred to M12**. The `RealtimeChannel` port is the seam.
+- [ ] Two-emulator end-to-end test — **deferred to M12** when both Android emulators can run the real app.
+
+**Responsibilities** (point at code)
+
+- [x] Outbox queue + periodic flush — `OutboxFlusher.launchLoop()`.
+- [x] Pull strategy `updated_at > last_sync_at` paged — `Puller.pullAll()`.
+- [x] Push strategy outbox → REST → remove — `OutboxFlusher.applyOutcome()`.
+- [x] Conflict policy `body remote-wins / tags union / non-content remote-wins` + conflict notebook — `ConflictResolver.resolve()` + `LocalNoteStore.insertConflictCopy()`.
+- [x] Realtime auto-merge while foregrounded — `RealtimeMerger.runForeground()`.
+- [x] Idempotency via client-generated UUIDs + 409 → Applied — `classifyHttpStatus()`.
+- [x] Resume-safe — `reviveStaleInFlight()` in `OutboxFlusher` + `IN_FLIGHT_TIMEOUT_S`.
+- [ ] Battery-aware WorkManager constraints — deferred to M12 (this is the worker layer's job).
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port implemented.
+- [x] No provider SDK leaked outside adapters — only `kotlinx-coroutines-core` and `core-domain`.
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (README + ADR + how-sync-works).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — `ConflictResolverTest`, `OutboxFlusherTest`, `PullerTest`, `SyncEngineTest`.
+- [x] Critical paths covered — every conflict branch, every flush outcome, idempotent retry, process-death recovery, FIFO ordering, realtime delete + conflict.
+- [x] Tests run in CI and pass — JUnit5 to be verified on first CI push.
+- [ ] Two-Android-emulator end-to-end test — **deferred to M12**.
+
+Documentation:
+- [x] Module README — `packages/android/sync-core/README.md`.
+- [x] Explainer — `docs/how-sync-works.md`.
+- [x] ADR — `docs/adr/0006-sync-conflict-policy.md`.
+
+Security:
+- [x] No secrets in code.
+- [x] RLS handled by the server (M04). The engine forwards the user JWT via the ports' implementations (M12); core itself has no auth state.
+- [x] Error messages don't leak provider details — `FlushOutcome.*` carry coded strings.
+
+Modularity:
+- [x] The engine can be deleted and replaced by a stub implementing `SyncEngine` without changes elsewhere.
+
+Operational:
+- [ ] pg_cron — N/A for M05.
+- [x] Telemetry — Sentry breadcrumbs in M12 will wrap each `applyOutcome` call.
+- [x] Manual smoke test — TS workspace green; JUnit5 to verify on CI push.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M06 — Editor Module (Web + Android)
 
 Spec: `docs/tech-specs/M06-editor.md`
