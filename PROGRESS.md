@@ -66,3 +66,57 @@ Hand-back:
 - [ ] PR opened, branch up-to-date with main, CI green — **pending push to remote**.
 
 **Stage 1 gate status**: not reachable yet — needs M01, M02, M04.
+
+---
+
+### M01 — Domain Model & Shared Types
+
+Spec: `docs/tech-specs/M01-domain-model.md`
+
+**Deliverables**
+
+- [x] Kotlin module `core-domain` with all entity classes and value-class IDs — `packages/android/core-domain/src/main/kotlin/app/notes/domain/*.kt`.
+- [x] TypeScript package `@notes-app/domain` mirroring the same shapes — `packages/domain/src/*.ts`.
+- [x] Unit tests for every invariant — 48 Vitest cases + 41 JUnit5 cases.
+- [x] README in each package listing every public type — `packages/domain/README.md`, `packages/android/core-domain/README.md`.
+
+**Responsibilities**
+
+- [x] Pure data classes / TS types — no I/O, no framework code.
+- [x] Opaque IDs (branded types / `@JvmInline value class`) — `packages/domain/src/ids.ts`, `packages/android/core-domain/.../Ids.kt`.
+- [x] Validation invariants enforced in constructors — factory functions in TS, `init` blocks in Kotlin.
+- [x] Timestamps are `Instant` (Kotlin) / ISO-8601 strings (TS) — see `Note`, `Notebook`, `CalendarEvent`.
+- [x] Sealed-class enums for `StorageProviderId`, `CalendarProviderId`, `AIProviderId`, `SyncStatus` — `Enums.kt` and `enums.ts`.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public types implemented per spec.
+- [x] No provider names leaked outside the enum types themselves (no SDK calls anywhere — these are pure types).
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (READMEs + non-obvious behaviour commented inline).
+
+Tests:
+- [x] Unit tests cover happy path + every invariant.
+- [x] TS suite verified locally (`pnpm test` — 96 passing).
+- [ ] Kotlin suite verified — **pending CI run** (no JDK installed locally; will verify on the first push).
+- [x] Critical paths covered (every invariant has at least one test).
+
+Documentation:
+- [x] Module READMEs — `packages/domain/README.md`, `packages/android/core-domain/README.md`, plus updated `packages/android/README.md`.
+- [x] ADR — `docs/adr/0002-branded-ids-and-sealed-enums.md`.
+
+Security:
+- [x] No secrets in code.
+- [x] No DB tables / RLS — N/A for pure types.
+- [x] No external API calls — N/A.
+
+Modularity:
+- [x] Either package can be deleted and replaced by a same-shaped stub without breaking other modules — verified by the absence of imports anywhere else in the repo today.
+
+Operational:
+- [x] No pg_cron / telemetry / smoke test applicable to a pure types package.
+
+Hand-back:
+- [ ] PR opened, CI green — **pending push**.

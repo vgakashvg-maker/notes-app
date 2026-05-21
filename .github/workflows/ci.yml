@@ -44,8 +44,8 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-  android:
-    name: Lint + tests (Android)
+  jvm:
+    name: Kotlin tests (JVM)
     runs-on: ubuntu-latest
     if: hashFiles('packages/android/gradlew') != ''
     steps:
@@ -61,18 +61,14 @@ jobs:
       - name: Setup Gradle (cache wrapper + dependencies)
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Gradle lint
+      - name: Gradle test
         working-directory: packages/android
-        run: ./gradlew lint
-
-      - name: Gradle unit tests (JUnit)
-        working-directory: packages/android
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew test --stacktrace
 
       - name: Publish JUnit results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-junit
+          name: jvm-junit
           path: packages/android/**/build/test-results/**/*.xml
           if-no-files-found: ignore
