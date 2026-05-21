@@ -2,3 +2,4 @@ packages:
   - "packages/web"
   - "packages/shared"
   - "packages/domain"
+  - "packages/auth"
