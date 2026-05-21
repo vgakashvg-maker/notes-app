@@ -1,0 +1,22 @@
+﻿node_modules/
+.env
+.env.local
+.env.*.local
+*.log
+.next/
+.gradle/
+build/
+app/build/
+dist/
+coverage/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Android signing artefacts (decoded by CI, never committed)
+packages/android/release.keystore
+packages/android/local.properties
+
+# Vercel local cache
+.vercel
