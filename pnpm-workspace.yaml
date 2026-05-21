@@ -3,3 +3,4 @@ packages:
   - "packages/shared"
   - "packages/domain"
   - "packages/auth"
+  - "packages/notes"
