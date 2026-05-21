@@ -65,7 +65,9 @@ Operational:
 Hand-back:
 - [ ] PR opened, branch up-to-date with main, CI green — **pending push to remote**.
 
-**Stage 1 gate status**: not reachable yet — needs M02, M04.
+**Stage 1 gate status**: M01, M02, M04 all landed in code. Reachable once
+M06 (web shell) and M12 (Android shell) wire the existing adapters into
+real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
