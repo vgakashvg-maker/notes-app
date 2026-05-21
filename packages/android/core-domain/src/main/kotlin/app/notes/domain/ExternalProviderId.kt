@@ -16,7 +16,9 @@ sealed class ExternalProviderId(val wireName: String) {
     object GoogleUserinfo : ExternalProviderId("GOOGLE_USERINFO")
 
     companion object {
-        val all: List<ExternalProviderId> = listOf(GoogleDrive, GoogleCalendar, GoogleUserinfo)
+        val all: List<ExternalProviderId> by lazy {
+            listOf(GoogleDrive, GoogleCalendar, GoogleUserinfo)
+        }
         fun fromWireName(name: String): ExternalProviderId =
             all.firstOrNull { it.wireName == name }
                 ?: throw IllegalArgumentException(

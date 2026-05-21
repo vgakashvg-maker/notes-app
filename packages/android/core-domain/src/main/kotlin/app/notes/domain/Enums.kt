@@ -5,7 +5,12 @@ sealed class StorageProviderId(val wireName: String) {
     object OneDrive : StorageProviderId("ONEDRIVE")
 
     companion object {
-        val all: List<StorageProviderId> = listOf(GoogleDrive, OneDrive)
+        // `by lazy` is load-bearing here: a `val all = listOf(...)` initialised
+        // in the companion runs before the nested `object` subclasses have
+        // finished their own static initialisation, so the list ends up full of
+        // nulls. Deferring with `by lazy` lets the JVM finish loading the
+        // nested classes first.
+        val all: List<StorageProviderId> by lazy { listOf(GoogleDrive, OneDrive) }
         fun fromWireName(name: String): StorageProviderId =
             all.firstOrNull { it.wireName == name }
                 ?: throw IllegalArgumentException(
@@ -19,7 +24,7 @@ sealed class CalendarProviderId(val wireName: String) {
     object MicrosoftGraph : CalendarProviderId("MICROSOFT_GRAPH")
 
     companion object {
-        val all: List<CalendarProviderId> = listOf(GoogleCalendar, MicrosoftGraph)
+        val all: List<CalendarProviderId> by lazy { listOf(GoogleCalendar, MicrosoftGraph) }
         fun fromWireName(name: String): CalendarProviderId =
             all.firstOrNull { it.wireName == name }
                 ?: throw IllegalArgumentException(
@@ -35,7 +40,7 @@ sealed class AIProviderId(val wireName: String) {
     object Groq : AIProviderId("GROQ")
 
     companion object {
-        val all: List<AIProviderId> = listOf(Ollama, Anthropic, OpenAI, Groq)
+        val all: List<AIProviderId> by lazy { listOf(Ollama, Anthropic, OpenAI, Groq) }
         fun fromWireName(name: String): AIProviderId =
             all.firstOrNull { it.wireName == name }
                 ?: throw IllegalArgumentException(

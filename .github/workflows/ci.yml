@@ -65,7 +65,9 @@ jobs:
 
       - name: Gradle test
         working-directory: packages/android
-        run: ./gradlew test --stacktrace --console=plain
+        # --continue makes Gradle finish every module's test task even when an
+        # earlier one fails, so a single CI run surfaces every failure.
+        run: ./gradlew test --continue --stacktrace --console=plain
 
       - name: Publish JUnit results
         if: always()

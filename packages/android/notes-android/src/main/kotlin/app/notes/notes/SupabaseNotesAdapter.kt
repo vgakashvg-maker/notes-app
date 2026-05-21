@@ -6,6 +6,7 @@ import app.notes.domain.Notebook
 import app.notes.domain.NotebookId
 import app.notes.domain.Tag
 import app.notes.domain.TagId
+import app.notes.domain.isJsonParseable
 
 /**
  * V1 [NotesService] implementation. Talks to Supabase via a thin
@@ -87,34 +88,4 @@ interface NotesHttp {
     suspend fun mergeTag(from: TagId, into: TagId)
 
     suspend fun searchNotes(q: String, filter: NoteFilter): List<NoteHit>
-}
-
-/** Same JSON parseability heuristic the core-domain Note uses. */
-private fun String.isJsonParseable(): Boolean {
-    val trimmed = trim()
-    if (trimmed.isEmpty()) return false
-    val first = trimmed.first()
-    if (first !in setOf('{', '[', '"', 't', 'f', 'n') && !first.isDigit() && first != '-') return false
-    var depthCurly = 0
-    var depthSquare = 0
-    var inString = false
-    var escape = false
-    for (c in trimmed) {
-        if (inString) {
-            when {
-                escape -> escape = false
-                c == '\\' -> escape = true
-                c == '"' -> inString = false
-            }
-            continue
-        }
-        when (c) {
-            '"' -> inString = true
-            '{' -> depthCurly++
-            '}' -> if (--depthCurly < 0) return false
-            '[' -> depthSquare++
-            ']' -> if (--depthSquare < 0) return false
-        }
-    }
-    return !inString && depthCurly == 0 && depthSquare == 0
 }

@@ -121,7 +121,10 @@ class SupabaseNotesAdapterTest {
         val ex = assertThrows(NotesNotFoundException::class.java) {
             kotlinx.coroutines.runBlocking { adapter.getNote(noteId) }
         }
-        assertSame(noteId, ex.id)
+        // assertEquals not assertSame: NoteId is a @JvmInline value class and
+        // crossing the Any? boundary via ex.id boxes it into a fresh wrapper,
+        // so reference identity is not preserved.
+        assertEquals(noteId, ex.id)
     }
 
     @Test
