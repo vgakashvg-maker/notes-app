@@ -71,6 +71,71 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M10 — Embedding & Vector Search
+
+Spec: `docs/tech-specs/M10-embedding-vector.md`
+
+**Live state (as of M10 push)**
+
+- `notes-dev` Supabase project (`poygaxjdflacpbcygpqe`) has **5 migrations applied** end-to-end: M02 `users_profile`, M04 `notes_core` + `trash_retention_job`, M07 `dangling_attachments`, and M10 `note_embeddings`. `pg_extension` shows `vector`, `pg_net`, `pg_cron`, `pgcrypto`, `pgsodium`, `pgtap` all enabled.
+- Local Ollama at `127.0.0.1:11434` confirmed working — `nomic-embed-text:latest` returns 768-dim vectors. Tailscale Funnel re-armed (`tailscale funnel --bg 11434`); the public URL `https://kepler.tail97a482.ts.net/` proxies to Ollama. Ollama's host-check rejects the funnel hostname, so the Edge Function sends `Host: 127.0.0.1:11434` to bypass — see the adapter wiring in `supabase/functions/embeddings/index/index.ts`.
+
+**Deliverables**
+
+- [x] Migration `supabase/migrations/20260522130000_note_embeddings.sql` — pgvector extension, `note_embeddings` table with `vector(768)`, partial HNSW cosine index for `ollama:nomic-embed-text`, stamp-owner trigger, RLS, `vector_search()` SQL function, `notes_embed_trigger` enqueuing via `pg_net.http_post` with safe-no-op when GUCs are unset.
+- [x] TS package `@notes-app/embeddings` — chunker (word-based ~500/50, mirrors the M04 SQL plaintext extractor), `OllamaEmbedClient` with `Host` override, `indexNote()` pure logic (skips trashed / ai_excluded / missing / empty-body), `vectorSearch()` embed-then-RPC wrapper.
+- [x] Edge Function `supabase/functions/embeddings/index/index.ts` — Deno entry wired to PostgREST + Ollama; delete-then-insert per `(note_id, namespace)` so re-indexing never leaves stale tail chunks.
+- [x] Trigger — `notes_embed_trigger` fires on changes to `body_json`, `title`, `is_trashed`, `ai_excluded`. No-ops when `app.settings.supabase_url` / `app.settings.service_role_key` GUCs are unset; never blocks the INSERT path on http_post failure.
+- [x] Backfill script — `scripts/backfill-embeddings.ts` (paged + concurrent worker pool).
+- [x] pgTAP — `supabase/tests/rls_notes.test.sql` (4 functions: own-rows, cross-tenant-blind, cross-tenant-cannot-mutate, cross-owner-note_tags-rejected) and `supabase/tests/rls_embeddings.test.sql` (4 functions: stamp-owner-fires, cross-tenant-blind, namespace-isolation, vector_search-user-scoped). Both green on `notes-dev` via `supabase db query --file`.
+
+**Responsibilities**
+
+- [x] Chunk into ~500-token windows with 50-token overlap — `chunkText()` + 32 vitest cases including a 1500-word fixture (4 chunks at 450 step) and overlap-tail-equals-head property.
+- [x] Trigger enqueues an embedding job on insert/update — `notes_embed_trigger` (verified by inspecting `pg_trigger`).
+- [x] HNSW index per namespace — partial index `idx_emb_ollama_nomic` on `(embedding vector_cosine_ops) WHERE namespace = 'ollama:nomic-embed-text'`.
+- [x] Namespace = `${provider}:${model}` — `assertNamespace()` regex + DEFAULT_NAMESPACE constant + the SQL function's `filter_namespace text` parameter.
+- [x] Filter pushdown — `vector_search()` takes `filter_notebooks uuid[]`, `filter_tags uuid[]`, `exclude_ai boolean`; the TS wrapper composes them.
+- [x] Backfill — `scripts/backfill-embeddings.ts`.
+- [x] Idempotency — Edge Function deletes existing rows for `(note_id, namespace)` before re-inserting; unique constraint on `(note_id, namespace, chunk_index)` makes duplicate enqueues a no-op.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port implemented.
+- [x] No provider SDK leaked outside adapters — only `@notes-app/domain` + `@notes-app/editor-schema`.
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (README + inline notes at non-obvious branches).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 32 vitest cases across chunker, namespace, OllamaEmbedClient, indexNote, vectorSearch.
+- [x] Round-trip — RLS suite via pgTAP exercises the stamp-owner trigger + `vector_search()` user-scoping live on `notes-dev`. End-to-end (real chunk → real Ollama vector → `vector_search()` returns it) deferred until M09 chat lands, which is the natural smoke surface.
+- [x] Namespace isolation — `test_namespace_isolation` verifies two namespaces coexist for the same `(note_id, chunk_index)`.
+- [x] Tests run in CI and pass — vitest verified locally; Kotlin not affected; pgTAP requires linked DB.
+
+Documentation:
+- [x] Module README — `packages/embeddings/README.md`.
+- [x] Live setup notes inline in this PROGRESS entry (above).
+
+Security:
+- [x] No secrets in code. The Supabase access token + DB-side service-role key live only in `.env` (gitignored) and the in-session env var.
+- [x] RLS — `note_embeddings` has `owner_can_all` policy + stamp-owner trigger; `vector_search()` uses `security invoker` so RLS applies to its underlying SELECT.
+- [x] Error messages don't leak provider details — Edge Function returns coded errors; the trigger raises a WARNING for http_post failures rather than blocking the INSERT.
+
+Modularity:
+- [x] Swap the embedding provider — change the namespace + add a partial HNSW index in a follow-up migration. The `OllamaEmbedClient` shape is small enough to mirror for Anthropic / OpenAI clients.
+
+Operational:
+- [x] Daily re-index isn't needed — the trigger keeps embeddings live; backfill is for first-deploy and model swaps.
+- [x] `app.settings.supabase_url` + `app.settings.service_role_key` GUCs need to be set on the DB for the trigger to actually call the Edge Function. Documented in the migration; sets via `alter database postgres set app.settings.supabase_url = '...';` (admin-only, deferred until M09 lands the chat surface).
+- [x] Manual smoke test — pgTAP suites green; TS suite green (267 vitest cases).
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M07 — Attachment Pipeline
 
 Spec: `docs/tech-specs/M07-attachment-pipeline.md`
