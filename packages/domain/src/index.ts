@@ -13,3 +13,4 @@ export * from "./storage.js";
 export * from "./attachment-pipeline.js";
 export * from "./ai.js";
 export * from "./ai-routing.js";
+export * from "./notifications.js";
