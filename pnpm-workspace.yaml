@@ -7,3 +7,4 @@ packages:
   - "packages/editor-schema"
   - "packages/storage"
   - "packages/attachments"
+  - "packages/embeddings"
