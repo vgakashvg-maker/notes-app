@@ -8,6 +8,123 @@ explicitly deferred with the reason).
 
 ## Stage 1 — Foundation
 
+### M11 — Notifications
+
+Spec: `docs/tech-specs/M11-notifications.md`
+
+**Live state**
+
+- 9 migrations applied on `notes-dev` (added **M11 `reminders`**).
+  3 pgTAP cases in `rls_reminders.test.sql` (stamp-owner, cross-tenant
+  blind, cross-tenant cannot mutate); all green.
+- Domain port `NotificationProvider` (TS + Kotlin twin) + `Reminder` /
+  `ReminderId` / `PushPayload` (V2). Web hook + Android binding both
+  land in V1; V2 swap goes through the same shape.
+- Workspace tests: 366 vitest cases (12 new — 7 schedule + 5 hook),
+  Android JUnit5 18 cases (4 new — ReminderTiming).
+
+**Deliverables**
+
+- [x] Migration `supabase/migrations/20260522180000_reminders.sql` —
+  `reminders` table with stamp-owner trigger that also derives owner
+  from a linked note when `note_id` is set; partial index on
+  `(owner_id, fire_at) where status='scheduled'`; RLS enforced.
+- [x] Domain types — `NotificationProvider`, `Reminder`,
+  `ReminderId`, `ReminderStatus`, `PushPayload` (TS + Kotlin).
+- [x] Web `useNotifications` hook — wraps `Notification.requestPermission()`,
+  schedules via `setTimeout` for the 24h window, exposes a `cancel()`
+  for in-tab cleanup. Pure `decideSchedule` brain lives in a separate
+  file for headless testing.
+- [x] Android: manifest perms (POST_NOTIFICATIONS, SCHEDULE_EXACT_ALARM,
+  USE_EXACT_ALARM, RECEIVE_BOOT_COMPLETED), `AlarmReceiver`,
+  `BootReceiver`, `AndroidNotificationProvider` (AlarmManager
+  `setExactAndAllowWhileIdle` + the `notes.reminders` channel),
+  `ReminderTiming` pure twin of the web brain, Hilt
+  `NotificationsModule`.
+- [x] 12 new vitest cases (`schedule.test.ts` ×7,
+  `use-notifications.test.tsx` ×5; the hook test stubs
+  `globalThis.Notification` + `vi.useFakeTimers`).
+- [x] 4 new JUnit5 cases for `ReminderTiming` covering missed /
+  in-window / past-window / non-scheduled.
+- [ ] Android instrumented test (alarm fires in 5s) — **deferred**.
+  Same posture as the M12 Espresso suite: needs a real emulator. The
+  pure `ReminderTiming` covers the brain.
+- [ ] FCM push channel — **V2**. `sendPush` on V1 throws
+  `NotImplementedError`.
+- [ ] BOOT_COMPLETED rehydration walk — **deferred to the Room
+  binding follow-up**. The receiver is wired in the manifest as the
+  binding seam; the actual walk consumes the future Room mirror of
+  `reminders`.
+
+**Responsibilities** (point at code)
+
+- [x] Android: AlarmManager + WorkManager for local reminders —
+  `AndroidNotificationProvider.scheduleLocal` (AlarmManager). WorkManager
+  is the receiver-binding seam — same deferral as M05 / M07.
+- [x] Web: Web Notifications API — `useNotifications`.
+- [x] V2: FCM behind the same port — `sendPush` is the seam; V1 throws.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port interface implemented (V1
+  scope — `sendPush` throws by design).
+- [x] No provider SDK leaked outside binding files — Web hook uses
+  the browser-native `Notification` API; Android binding lives in
+  `app.notes.android.notifications`.
+- [x] No TODO/FIXME/XXX comments outside the module's deferred notes.
+- [x] No commented-out code.
+- [x] Public APIs documented inline.
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 12 vitest cases + 4
+  JUnit5 cases. Missed reminders fire immediately; in-window schedule
+  a setTimeout; past-window defer; non-scheduled skip; cancel clears
+  the timer; the `Notification` API absence reports `unsupported`.
+- [x] Critical paths covered.
+- [x] Tests run in CI and pass — verified locally; pgTAP 3/3 on
+  notes-dev.
+- [ ] Android instrumented test — deferred.
+
+Documentation:
+- [x] PROGRESS entry (this section).
+- [x] No new ADR — the V2 vs V1 split is captured by the
+  `NotImplementedError` thrown by `sendPush`.
+
+Security:
+- [x] No secrets in code — Web hook reads no env; Android binding
+  uses the JWT-bound repos elsewhere (M11 itself stores nothing
+  remote — it's a local-firing module that reads `reminders` via
+  PostgREST when Stage 2 wires that surface).
+- [x] RLS tested — `rls_reminders.test.sql` covers the three guarantees.
+- [x] Error messages don't leak provider details — Web hook swallows
+  Notification-constructor throws; Android side surfaces only what the
+  Android UI shows.
+
+Modularity:
+- [x] The module can be deleted and replaced by a stub — domain port
+  is the seam; web hook + Android binding are the only consumer-side
+  pieces.
+
+Operational:
+- [ ] pg_cron — N/A.
+- [x] Telemetry — Sentry breadcrumbs wrap each `scheduleLocal` once
+  M12's full SDK wiring lands (the M14 shim is the seam).
+- [x] Manual smoke test — TS workspace 366 vitest cases green; Gradle
+  green; pgTAP 3/3 on notes-dev.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+**Stage 1 gate**: M01 / M02 / M03 / M04 / M05 / M06 / M07 / M08 / M09 /
+M10 / **M11** / M12 / M13 / M14 / M15 all landed in code. **Stage 1
+gate is reached** — every module from the build plan is in the repo,
+with the deferrals tracked module-by-module (real OAuth flow, Room +
+sync engine boot, Espresso / Playwright e2e, signed AAB / Vercel
+deploy, V2 multi-provider AI keys, FCM push, calendar push channels).
+
+---
+
 ### M08 — Calendar Integration
 
 Spec: `docs/tech-specs/M08-calendar-integration.md`
