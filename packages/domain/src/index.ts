@@ -8,3 +8,4 @@ export * from "./calendar.js";
 export * from "./embedding.js";
 export * from "./user.js";
 export * from "./auth.js";
+export * from "./storage.js";
