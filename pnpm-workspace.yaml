@@ -9,3 +9,4 @@ packages:
   - "packages/attachments"
   - "packages/embeddings"
   - "packages/ai"
+  - "packages/calendar"

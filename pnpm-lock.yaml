@@ -69,6 +69,19 @@ importers:
         specifier: ^2.1.2
         version: 2.1.9(@types/node@20.19.41)(jsdom@25.0.1)
 
+  packages/calendar:
+    dependencies:
+      '@notes-app/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.2
+        version: 2.1.9(@types/node@20.19.41)(jsdom@25.0.1)
+
   packages/domain:
     devDependencies:
       typescript:
