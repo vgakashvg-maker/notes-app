@@ -10,7 +10,6 @@ import app.notes.domain.StorageProvider
 import app.notes.domain.StorageProviderId
 import app.notes.domain.UploadState
 import app.notes.domain.UserId
-import app.notes.domain.makeAttachmentRef
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
