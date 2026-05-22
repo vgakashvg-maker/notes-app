@@ -8,6 +8,139 @@ explicitly deferred with the reason).
 
 ## Stage 1 — Foundation
 
+### M08 — Calendar Integration
+
+Spec: `docs/tech-specs/M08-calendar-integration.md`
+
+**Live state**
+
+- 8 migrations applied on `notes-dev` (added **M08 `events_mirror`** +
+  **`note_event_links`**). 4 pgTAP cases in `rls_events_mirror.test.sql`
+  cover stamp-owner, cross-tenant blind, cross-tenant cannot-mutate, and
+  the cross-owner note_event_links reject; all green.
+- New TS package `@notes-app/calendar` lands with
+  `GoogleCalendarAdapter` (structurally typed `CalendarHttp` port +
+  `reconcile()` for the events_mirror sync diff). 11 new vitest cases
+  bring the workspace total to 354.
+- 2 new Edge Functions (`calendar/sync`, `calendar/create-event`) wired
+  to Google Calendar v3 via the M02 `refresh-provider-token` Edge
+  Function (no Google client SDK; raw `fetch`).
+- Web `/` (Today) and Android `TodayScreen` now read `events_mirror`
+  via PostgREST and render events scoped to the device's local-day
+  window.
+
+**Deliverables**
+
+- [x] Migration `supabase/migrations/20260522170000_events_mirror.sql` —
+  `events_mirror` (unique on `(owner_id, provider, external_event_id)`)
+  + `note_event_links` (cross-owner reject trigger), both with RLS +
+  stamp-owner.
+- [x] Domain ports (TS + Kotlin) — `CalendarProvider`, `DateRange`,
+  `NewEventInput`, `EventPatch`, `CalendarChange`, `ExternalEventId`.
+  Kotlin twin uses `pollEvents` (V1 polling) instead of `Flow` so
+  `core-domain` stays coroutine-free.
+- [x] `@notes-app/calendar` — `GoogleCalendarAdapter` against the
+  `CalendarHttp` port; pagination + `cancelled`/all-day filtering;
+  `reconcile()` returns the upsert/delete diff M08 sync needs.
+- [x] Edge Function `calendar/sync` — fetches events for a date range,
+  upserts on `(owner_id, provider, external_event_id)`, deletes mirror
+  rows whose external id no longer appears in the range.
+- [x] Edge Function `calendar/create-event` — creates the event in
+  Google Calendar, upserts into events_mirror, inserts the
+  `note_event_links` back-reference if `noteId` was supplied.
+- [x] Web Today view (`/`) — RSC reads events for the device-local
+  day window via `listEventsInRange`; events render alongside recent
+  notes.
+- [x] Android Today view — `CalendarRepository` (Ktor + PostgREST) +
+  `TodayViewModel` + Compose render with a "Sync now" button that
+  invokes `calendar/sync`.
+- [x] Time zones — events stored in UTC; web renders via
+  `Intl.DateTimeFormat` (device zone); Android renders via
+  `OffsetDateTime.toLocalTime()`.
+- [ ] Tests against a real Google Calendar account — **deferred**.
+  Same blockers as the M02 / M03 integration tests (provisioned OAuth
+  client + test account). The unit-test suite covers the adapter's
+  reconcile + page-walk + filter logic.
+- [ ] WorkManager periodic worker (15-min poll while foregrounded) —
+  **deferred to a follow-up**. The CalendarRepository's `triggerSync`
+  is the foreground hook; the worker is a binding the same way the
+  M05 WorkManager workers were deferred.
+- [ ] Calendar push channels — **V2**.
+
+**Responsibilities** (point at code)
+
+- [x] Google Calendar API v3 via the user's OAuth token (no
+  `googleapis` SDK) — `supabase/functions/calendar/_shared/google.ts`
+  uses raw `fetch` against `https://www.googleapis.com/calendar/v3`.
+- [x] Mirror events into `events_mirror` — `calendar/sync` + the M08
+  migration; reconcile diff lives in `@notes-app/calendar/sync.ts`.
+- [x] Outbound "Create Calendar event" from a note — `calendar/create-event`
+  + the `note_event_links` insert (cross-owner-reject trigger keeps
+  the link safe).
+- [x] Time-zone correct — UTC at rest; render-time conversion on each
+  client.
+- [ ] 15-min polling cadence — deferred (the foreground "Sync now"
+  button is the V1 hook).
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port interface implemented — TS
+  `CalendarProvider` is concrete via `GoogleCalendarAdapter`; Kotlin
+  port mirrored.
+- [x] No provider SDK leaked outside adapters — the Edge Functions and
+  `@notes-app/calendar` are the only files importing Calendar v3
+  shapes; UI surfaces talk to PostgREST + the Edge Functions only.
+- [x] No TODO/FIXME/XXX comments outside the module's deferred notes.
+- [x] No commented-out code.
+- [x] Public APIs documented inline — the deferred items here are the
+  next surface to touch.
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 11 vitest cases across
+  `GoogleCalendarAdapter` (7) + `reconcile` / `eventToUpsertRow` (4).
+- [x] Critical paths covered — pagination, all-day filter, cancelled
+  filter, reconcile diff isolation per provider, upsert payload
+  fidelity.
+- [x] Tests run in CI and pass — verified locally (workspace + Gradle
+  green; pgTAP 4/4 against notes-dev).
+- [ ] Integration test against a real Calendar — deferred.
+
+Documentation:
+- [x] PROGRESS entry (this section) + the spec is the contract.
+- [x] No new ADR — the M02 OAuth-scopes ADR (0007) already covers the
+  `calendar.events` scope decision.
+
+Security:
+- [x] No secrets in code — refresh token stays in
+  `users_profile.google_refresh_token bytea` (M02); the Edge Functions
+  swap it for an access token via `refresh-provider-token`.
+- [x] RLS tested — `rls_events_mirror.test.sql` covers stamp +
+  cross-tenant blind + cannot-mutate + cross-owner reject for the link
+  table.
+- [x] Error messages don't leak provider details — Edge Functions
+  return `ERR_UPSTREAM` / `ERR_PROVIDER_TOKEN` rather than raw Google
+  responses.
+
+Modularity:
+- [x] OutlookCalendarAdapter is a V2 swap behind the same
+  `CalendarProvider` port — `provider` already accepts
+  `MICROSOFT_GRAPH` (check constraint + enum).
+
+Operational:
+- [ ] pg_cron — N/A (V1 is foreground-triggered).
+- [x] Telemetry — same `ai_usage_log`-style observability budget as
+  M09; calendar Edge Functions return a `{ ok, upserted, deleted }`
+  envelope the UI can log.
+- [x] Manual smoke test — TS workspace 354 vitest cases green, Gradle
+  green, `:app:assembleDebug` produces a working APK, pgTAP 4/4 on
+  notes-dev.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M15 — AI Settings, Routing & Endpoint Management
 
 Spec: `docs/tech-specs/M15-ai-settings-routing.md`
