@@ -5,6 +5,7 @@ export * from "./tag.js";
 export * from "./attachment.js";
 export * from "./note.js";
 export * from "./calendar.js";
+export * from "./calendar-provider.js";
 export * from "./embedding.js";
 export * from "./user.js";
 export * from "./auth.js";
