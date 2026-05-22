@@ -71,6 +71,68 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M03 — Storage Provider (Google Drive in V1)
+
+Spec: `docs/tech-specs/M03-storage-provider.md` · ADR: `docs/adr/0007-drive-scopes.md`
+
+**Deliverables**
+
+- [x] Domain port — `StorageProvider`, `RemoteFile`, `FileInput`, `StorageError` sealed union, `SIMPLE_UPLOAD_THRESHOLD_BYTES = 5 MB` in both `@notes-app/domain` and `core-domain`.
+- [x] TS adapter `@notes-app/storage` — `GoogleDriveAdapter` against a structural `DriveHttpClient` port; `ensureAppFolder()` with single-flight caching; simple upload < 5 MB and resumable upload ≥ 5 MB (8 MB chunks); `getDownloadUrl()` via Drive media URL with embedded token; jittered exponential-backoff retry on 5xx/408/429 (max 3 retries).
+- [x] Kotlin adapter `storage-android` — mirror of the TS package against a `DriveHttp` port + `BackoffConfig`; same retry policy + same simple/resumable split.
+- [x] Edge Function `supabase/functions/storage/sign/index.ts` — Deno entry that verifies caller-ownership against `attachments_refs` via RLS (forwarded JWT), mints a Drive media URL via the sibling `auth/refresh-provider-token` function, and returns a `{ url, expires_at }` payload.
+- [x] ADR `docs/adr/0007-drive-scopes.md` — captures the `drive.file` (per-file) over `drive` (full) decision.
+- [x] README — `packages/storage/README.md` with the "add a new adapter" checklist.
+- [ ] Live integration test against a real Google account — **deferred**. Needs a provisioned OAuth client + test account + bytes round-trip. Tracked alongside the M02 sign-in integration test.
+- [ ] Real Ktor binding behind `DriveHttp` (Android) — **deferred to M12** with the app shell.
+
+**Responsibilities**
+
+- [x] Drive v3 REST via the user's OAuth token, no `googleapis` SDK — confirmed: only `@notes-app/domain` is imported by the adapter package.
+- [x] Create + reuse `/NotesApp/` — `GoogleDriveAdapter.ensureAppFolder()` with field-level cache + Mutex single-flight.
+- [x] Upload returns `RemoteFile { externalId, name, mime, size }` — `matchToRemoteFile()`.
+- [x] Signed download URLs are short-lived (default 300 s, max 3600 s) and never persisted — `getDownloadUrl(ttlSeconds = 300)`.
+- [x] Resumable upload for files > 5 MB — `resumableUpload()` path triggered by `sizeBytes >= SIMPLE_UPLOAD_THRESHOLD_BYTES`.
+- [x] Retry with exponential backoff on 5xx and 429 — `retry()` + `isRetriable()` mapping 401 → no retry, 408/429/5xx → retry.
+- [x] Quota-exceeded surfaced cleanly — `StorageError.QuotaExceeded` variant for the Ktor/fetch implementations to map 403 storageQuotaExceeded into.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port implemented (TS + Kotlin).
+- [x] No provider SDK leaked outside adapters — the adapter packages depend only on `@notes-app/domain` / `core-domain` (and coroutines on the Kotlin side).
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (README + ADR + inline comments at non-obvious branches).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — TS: 31 cases across `google-drive-adapter`, `backoff`, `storage-sign`; Kotlin: 13 cases in `GoogleDriveAdapterTest` + 4 in `BackoffTest`.
+- [x] Critical paths covered — folder caching, simple+resumable upload, token-missing, ttl bounds, retry on 5xx/429, no-retry on 401, give-up after maxAttempts, delete forwarding, sign happy path, sign ownership check (404), sign upstream failure.
+- [x] Tests run in CI and pass — vitest verified locally; JUnit5 on next push.
+- [ ] Live integration test against real Drive — **deferred** (see Deliverables).
+
+Documentation:
+- [x] Module READMEs — `packages/storage/README.md`, `packages/android/storage-android/README.md`.
+- [x] ADR — `docs/adr/0007-drive-scopes.md`.
+
+Security:
+- [x] No secrets in code.
+- [x] RLS protects the ownership lookup — `storage/sign` forwards the user JWT to PostgREST when reading `attachments_refs`.
+- [x] Error messages don't leak provider details — `StorageError` variants carry coded strings; the Edge Function maps to error codes (`ERR_NOT_FOUND`, `ERR_UPSTREAM`).
+
+Modularity:
+- [x] Swap the adapter without changes elsewhere — README documents the "add a new adapter" checklist; the only consumer-facing surface is `StorageProvider` from the domain layer.
+
+Operational:
+- [ ] pg_cron — N/A for M03.
+- [x] Telemetry — Sentry breadcrumbs will wrap each adapter call once M12/M06 wires the binding.
+- [x] Manual smoke test — TS workspace green (202 vitest cases); Kotlin in CI.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M05 — Sync Engine (Android)
 
 Spec: `docs/tech-specs/M05-sync-engine.md` · explainer: `docs/how-sync-works.md` · policy: `docs/adr/0006-sync-conflict-policy.md`
