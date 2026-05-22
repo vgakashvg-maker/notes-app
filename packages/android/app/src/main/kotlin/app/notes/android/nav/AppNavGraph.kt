@@ -17,6 +17,9 @@ import app.notes.android.screens.search.SearchScreen
 import app.notes.android.screens.settings.SettingsScreen
 import app.notes.android.screens.signin.SignInScreen
 import app.notes.android.screens.today.TodayScreen
+import app.notes.android.settings.ai.AIEndpointScreen
+import app.notes.android.settings.ai.AIRoutingScreen
+import app.notes.android.settings.ai.AIUsageScreen
 
 /**
  * Single-activity Compose Navigation graph. Auth gate is observed via
@@ -65,7 +68,17 @@ fun AppNavGraph(auth: AuthStateHolder) {
                         popUpTo(0) { inclusive = true }
                     }
                 },
+                onNavigate = nav::navigate,
             )
+        }
+        composable(Destinations.SETTINGS_AI_ENDPOINT) {
+            AIEndpointScreen(viewModel = hiltViewModel())
+        }
+        composable(Destinations.SETTINGS_AI_ROUTING) {
+            AIRoutingScreen(viewModel = hiltViewModel())
+        }
+        composable(Destinations.SETTINGS_AI_USAGE) {
+            AIUsageScreen(viewModel = hiltViewModel())
         }
     }
 }
