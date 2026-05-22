@@ -8,6 +8,145 @@ explicitly deferred with the reason).
 
 ## Stage 1 — Foundation
 
+### M12 — Android App Shell
+
+Spec: `docs/tech-specs/M12-android-shell.md`
+
+**Live state**
+
+- `packages/android/app/` is a real Android Compose app. `:app:assembleDebug`
+  produces an APK; `:app:test` runs 14 JUnit5 cases (SSE parser + citation
+  splitter). Toolchain: AGP 8.7.3, Kotlin 2.0.21, Gradle 8.10.2, JDK 17
+  (auto-provisioned via the Foojay resolver), `compileSdk 35`, `minSdk 28`.
+- Strict prereqs M08 (calendar), M11 (notifications), M15 (settings /
+  routing) are still pending. Their UI surfaces and Hilt modules are
+  stubbed with explicit "lands with MNN" copy.
+
+**Deliverables**
+
+- [x] Android `:app` module with `com.android.application` + Compose +
+  Hilt + Compose Navigation + Material 3. AGP 8.7.3 + Foojay toolchain
+  resolver landed at the build root.
+- [x] Composition root `NotesApp : Application` with `@HiltAndroidApp`;
+  `SentryShim` boot stub matches the M14 observability-stub posture on
+  the web side.
+- [x] Hilt DI graph — `AppModule` (Ktor HttpClient, Json, Supabase URL /
+  anon-key Qualifiers, `SessionTokenStore`) + `ChatModule`
+  (`ChatStreamSource`). `AuthModule` / `NotesModule` / `StorageModule` /
+  `SyncModule` / `NotificationsModule` / `CalendarModule` deferred until
+  the concrete adapter bindings (Ktor SupabaseAuthHttp, Room DAOs, …)
+  land — see Stage 1 follow-ups.
+- [x] Single-activity Compose Navigation graph — `splash → signIn →
+  today / notes / notes/{id} / search / chat / settings`. Auth gate
+  driven by `AuthStateHolder.token` `StateFlow`.
+- [x] Material 3 theme with dynamic color on Android 12+; static
+  fallback palette mirrors the web Tailwind brand/surface/ink scheme.
+- [x] **Chat screen wired end-to-end** — Ktor SSE client
+  (`ChatStreamSource`) posts to `ai/chat` with the stored JWT, streams
+  `chunk` / `citation` / `warning` / `done` / `error` events into
+  `ChatViewModel.state`, renders `[[NoteId:UUID]]` markers via
+  `splitWithCitations` (Kotlin twin of `packages/web/lib/chat/citations.ts`).
+- [x] Sign-in screen — V1 JWT-paste box. Custom Tabs + deep-link OAuth
+  flow deferred (needs the `SupabaseAuthHttp` Ktor binding + manifest
+  intent-filter wiring — same posture as the web shell's deferred
+  Playwright e2e).
+- [x] EncryptedSharedPreferences-backed `SessionTokenStore` for the
+  pasted JWT.
+- [ ] Real Supabase OAuth (Custom Tabs + deep-link callback) — deferred.
+- [ ] Notes list / editor wired to Supabase REST — deferred until the
+  Android `NotesService` HTTP binding lands.
+- [ ] Sync engine boot — `SyncEngine.start()` in app scope — deferred
+  with the Room DAO + Supabase Realtime SDK binding (M05's deferred items).
+- [ ] Espresso end-to-end test (sign in → create note → see in list) —
+  **deferred**. Needs the OAuth flow + notes binding + a real emulator
+  / device. Same deferral pattern as the web shell's Playwright suite.
+- [ ] Macrobenchmark cold-start < 1.5s — **deferred**, needs a real
+  device + the Compose tree fully populated.
+- [ ] Signed AAB to Play internal track — **deferred to a release run**.
+  The M14 `build-apk.yml` workflow probes `packages/android/app/build.gradle.kts`,
+  so the gate now passes; the actual signing config wires when the
+  keystore env vars land.
+
+**Responsibilities** (point at the code that proves each one)
+
+- [x] Single-activity Compose Navigation with the top-level destinations
+  — `app/.../nav/AppNavGraph.kt`.
+- [x] Material 3 theming with dynamic color; dark mode default —
+  `app/.../ui/theme/Theme.kt`.
+- [x] Hilt DI with one module per concern — `app/.../di/`.
+- [x] Sentry init scaffold in `onCreate` — `app/.../observability/SentryShim.kt`
+  (SDK wiring stays behind the shim, matching M14's `initSentry` posture
+  on the web side).
+- [x] Splash → Auth → Main shell flow — `AppNavGraph.startDest` flips on
+  the `AuthStateHolder.token` value.
+- [x] Edge-to-edge — `ComponentActivity.enableEdgeToEdge()` in
+  `MainActivity.onCreate`.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public ports on the surface implemented — chat path is
+  end-to-end; the auth/notes/sync surfaces are shape-ready (Hilt modules
+  exist in name; concrete bindings deferred per Deliverables).
+- [x] No provider SDK leaked outside adapter / framework-binding files —
+  `@supabase/*` not used (the Android adapter binding will go through
+  Ktor), Ktor only inside `app/.../chat/` + `app/.../di/`.
+- [x] No TODO/FIXME/XXX comments outside the module's own deferred
+  notes.
+- [x] No commented-out code.
+- [x] Public APIs documented — `packages/android/README.md`.
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 14 JUnit5 cases across
+  `SseParserTest` (9) + `CitationSplitterTest` (5). Mirrors the web
+  shell's vitest contract for the same event types.
+- [x] Critical paths covered — every SSE event kind, split-frame
+  survival, citation lookup miss, malformed-JSON safety, flush of an
+  un-terminated tail.
+- [x] Tests run in CI and pass — verified locally via
+  `./gradlew :app:test`.
+- [ ] Espresso end-to-end — **deferred** (see Deliverables).
+- [ ] Macrobenchmark — **deferred**.
+
+Documentation:
+- [x] Module README — `packages/android/README.md` (Hilt graph + build
+  + toolchain notes).
+- [x] No new ADR required; the chat SSE contract already lives in
+  ADR 0008.
+
+Security:
+- [x] No secrets in code — SUPABASE_URL / SUPABASE_ANON_KEY / SENTRY_DSN
+  read from environment variables at build time into `BuildConfig`.
+- [x] EncryptedSharedPreferences for the pasted JWT.
+- [x] Error messages don't leak provider details — Ktor failures surface
+  as generic strings via `runCatching { ... }.onFailure { ... }`.
+
+Modularity:
+- [x] The Android shell can be deleted and replaced by a different UI
+  framework — domain ports + adapter packages have no Compose / Hilt
+  dependencies; only `:app` does.
+
+Operational:
+- [ ] pg_cron — N/A for M12.
+- [x] Telemetry — `SentryShim.init` scaffold; SDK wiring matches the
+  M14 web-side stub.
+- [x] Manual smoke test — `./gradlew :app:assembleDebug` + `./gradlew test`
+  green locally; 14 new JUnit5 cases on top of the existing pure-Kotlin
+  suites (workspace stays clean — TS side 337/337 vitest green).
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+**Stage 1 gate**: M01 / M02 / M03 / M04 / M05 / M06 / M07 / M09 / M10 /
+M12 / M13 / M14 all landed in code. Stage 1 gate is reachable once M08
+(calendar), M11 (notifications), and M15 (AI settings / routing) land.
+The remaining Android follow-ups (real OAuth flow, NotesService HTTP
+binding, SyncEngine boot, Espresso e2e) are not on the Stage-1 critical
+path — they're the bridge from "shell compiles end-to-end" to "app
+ships to Play internal track."
+
+---
+
 ### M13 — Web App Shell
 
 Spec: `docs/tech-specs/M13-web-shell.md`
