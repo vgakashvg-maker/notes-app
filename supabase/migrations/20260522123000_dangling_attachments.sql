@@ -14,13 +14,32 @@ create table if not exists public.dangling_attachments (
     missing_original boolean not null,
     missing_thumbnail boolean not null,
     detected_at timestamptz not null default now(),
-    constraint dangling_attachments_owner_match check (
-        owner_id = (select owner_id from public.attachments_refs where id = attachment_id)
-    ),
     constraint dangling_attachments_at_least_one_missing check (
         missing_original or missing_thumbnail
     )
 );
+
+-- CHECK constraints can't reference another table. The owner_id stays
+-- in lockstep with attachments_refs.owner_id via a BEFORE-INSERT/UPDATE
+-- trigger that stamps owner_id from the linked row.
+create or replace function public.dangling_attachments_stamp_owner() returns trigger
+language plpgsql as $$
+declare
+    src_owner uuid;
+begin
+    select owner_id into src_owner from public.attachments_refs where id = new.attachment_id;
+    if src_owner is null then
+        raise exception 'dangling_attachments: unknown attachment %', new.attachment_id;
+    end if;
+    new.owner_id := src_owner;
+    return new;
+end;
+$$;
+
+drop trigger if exists dangling_attachments_stamp_owner_trigger on public.dangling_attachments;
+create trigger dangling_attachments_stamp_owner_trigger
+before insert or update on public.dangling_attachments
+for each row execute function public.dangling_attachments_stamp_owner();
 
 create unique index if not exists dangling_attachments_attachment_idx
     on public.dangling_attachments (attachment_id);

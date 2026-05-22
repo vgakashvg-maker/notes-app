@@ -83,12 +83,36 @@ create table if not exists public.notes (
     constraint notes_trashed_at_matches_flag check (
         (is_trashed = true and trashed_at is not null)
         or (is_trashed = false and trashed_at is null)
-    ),
-    constraint notes_notebook_owner_match check (
-        notebook_id is null
-        or owner_id = (select owner_id from public.notebooks where id = notebook_id)
     )
 );
+
+-- A CHECK constraint cannot reference another table, so the
+-- cross-table "notebook must belong to the same owner" invariant
+-- lives in a BEFORE-INSERT/UPDATE trigger. Same pattern as
+-- note_tags_stamp_owner_trigger below.
+create or replace function public.notes_check_notebook_owner() returns trigger
+language plpgsql as $$
+declare
+    notebook_owner uuid;
+begin
+    if new.notebook_id is null then
+        return new;
+    end if;
+    select owner_id into notebook_owner from public.notebooks where id = new.notebook_id;
+    if notebook_owner is null then
+        raise exception 'notes.notebook_id %: unknown notebook', new.notebook_id;
+    end if;
+    if notebook_owner <> new.owner_id then
+        raise exception 'notes.notebook_id %: notebook belongs to a different owner', new.notebook_id;
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists notes_check_notebook_owner_trigger on public.notes;
+create trigger notes_check_notebook_owner_trigger
+before insert or update of notebook_id, owner_id on public.notes
+for each row execute function public.notes_check_notebook_owner();
 
 comment on table public.notes is 'M04 — note records. body_json is ProseMirror JSON; body_tsv is the FTS column.';
 

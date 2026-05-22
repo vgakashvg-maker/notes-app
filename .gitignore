@@ -21,3 +21,6 @@ packages/android/local.properties
 
 # Vercel local cache
 .vercel
+
+# Supabase CLI per-checkout cache (linked-project.json, postgres-version, …)
+supabase/.temp/

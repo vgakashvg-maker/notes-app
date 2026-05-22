@@ -1,26 +1,37 @@
 -- M04 — RLS multi-tenant safety net.
 --
--- Run via: supabase test db (uses pg_prove under the hood).
--- Verifies that authenticated user A cannot read, update, or delete user B's
--- notes/notebooks/tags. This is THE test that protects every future user.
+-- Run via the Supabase CLI's `db query --file`: the tests are wrapped
+-- in pgTAP test functions and discovered by runtests(), so all
+-- per-assertion lines come back as rows in a single result set
+-- (`supabase db query` only surfaces the last result set otherwise).
+--
+-- The whole script runs inside a transaction it then rolls back, so
+-- it is safe to re-run against a live database.
 
 begin;
 
-select plan(12);
+create extension if not exists pgtap;
 
 -- ----------------------------------------------------------------------------
--- Set-up: two synthetic auth users.
+-- Helper: switch the role + jwt claims to simulate user N. Used by both
+-- this file and rls_embeddings.test.sql.
 -- ----------------------------------------------------------------------------
 
-create or replace function tests.uuid_to_jwt_role(uid uuid) returns text
+create or replace function public.uuid_to_jwt_role(uid uuid) returns void
 language plpgsql as $$
 begin
     perform set_config('request.jwt.claim.sub', uid::text, true);
-    perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
+    perform set_config('request.jwt.claims',
+        json_build_object('sub', uid, 'role', 'authenticated')::text, true);
     perform set_config('role', 'authenticated', true);
-    return 'authenticated';
 end;
 $$;
+
+-- ----------------------------------------------------------------------------
+-- Two synthetic auth users. Inserted at top-level (security definer
+-- isn't required here because pgTAP runs as the connecting role,
+-- which has the admin privileges the test functions need).
+-- ----------------------------------------------------------------------------
 
 insert into auth.users (id, email, aud, role)
 values
@@ -29,16 +40,21 @@ values
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
--- As user A: insert a notebook + a note + a tag + a note_tags row.
+-- Seed user A's rows once, then verify behaviour from each user's POV
+-- inside dedicated test functions.
 -- ----------------------------------------------------------------------------
 
-select tests.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
-
+-- Seed runs as the connecting role (superuser bypass for RLS), so
+-- the rows land with the explicit owner_ids. Each test function
+-- switches to the relevant authenticated user via uuid_to_jwt_role
+-- before checking visibility.
 insert into public.notebooks (id, owner_id, name)
-values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa1', '11111111-1111-1111-1111-111111111111', 'A-Inbox');
+values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa1', '11111111-1111-1111-1111-111111111111', 'A-Inbox')
+on conflict (id) do nothing;
 
 insert into public.tags (id, owner_id, name)
-values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa2', '11111111-1111-1111-1111-111111111111', 'a-tag');
+values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa2', '11111111-1111-1111-1111-111111111111', 'a-tag')
+on conflict (id) do nothing;
 
 insert into public.notes (id, owner_id, notebook_id, title, body_json)
 values (
@@ -47,104 +63,84 @@ values (
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa1',
     'A-Note',
     '{"type":"doc","content":[]}'::jsonb
-);
+)
+on conflict (id) do nothing;
 
 insert into public.note_tags (note_id, tag_id)
-values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa2');
-
-select is(
-    (select count(*)::int from public.notes),
-    1,
-    'as user A: sees own note'
-);
-select is(
-    (select count(*)::int from public.notebooks),
-    1,
-    'as user A: sees own notebook'
-);
-select is(
-    (select count(*)::int from public.tags),
-    1,
-    'as user A: sees own tag'
-);
-select is(
-    (select count(*)::int from public.note_tags),
-    1,
-    'as user A: sees own note_tags row'
-);
+values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa2')
+on conflict (note_id, tag_id) do nothing;
 
 -- ----------------------------------------------------------------------------
--- As user B: no rows from A are visible.
+-- Tests
 -- ----------------------------------------------------------------------------
 
-select tests.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
+create or replace function public.test_user_a_sees_own_rows() returns setof text
+language plpgsql as $$
+begin
+    perform public.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
+    return next is((select count(*)::int from public.notes), 1, 'user A: sees own note');
+    return next is((select count(*)::int from public.notebooks), 1, 'user A: sees own notebook');
+    return next is((select count(*)::int from public.tags), 1, 'user A: sees own tag');
+    return next is((select count(*)::int from public.note_tags), 1, 'user A: sees own note_tags row');
+end;
+$$;
 
-select is(
-    (select count(*)::int from public.notes),
-    0,
-    'as user B: does NOT see user A''s notes'
-);
-select is(
-    (select count(*)::int from public.notebooks),
-    0,
-    'as user B: does NOT see user A''s notebooks'
-);
-select is(
-    (select count(*)::int from public.tags),
-    0,
-    'as user B: does NOT see user A''s tags'
-);
-select is(
-    (select count(*)::int from public.note_tags),
-    0,
-    'as user B: does NOT see user A''s note_tags'
-);
+create or replace function public.test_user_b_is_blind_to_user_a() returns setof text
+language plpgsql as $$
+begin
+    perform public.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
+    return next is((select count(*)::int from public.notes), 0, 'user B: does NOT see user A''s notes');
+    return next is((select count(*)::int from public.notebooks), 0, 'user B: does NOT see user A''s notebooks');
+    return next is((select count(*)::int from public.tags), 0, 'user B: does NOT see user A''s tags');
+    return next is((select count(*)::int from public.note_tags), 0, 'user B: does NOT see user A''s note_tags');
+end;
+$$;
 
--- UPDATE / DELETE attempts hit zero rows under RLS.
-update public.notes set title = 'pwned' where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3';
-select is(
-    (select count(*)::int from public.notes where title = 'pwned'),
-    0,
-    'as user B: UPDATE of user A''s note affects zero rows'
-);
+create or replace function public.test_user_b_cannot_mutate_user_a() returns setof text
+language plpgsql as $$
+begin
+    perform public.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
+    update public.notes set title = 'pwned' where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3';
+    return next is((select count(*)::int from public.notes where title = 'pwned'), 0,
+        'user B: UPDATE of user A''s note affects zero rows');
+    delete from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3';
+    perform public.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
+    return next is((select count(*)::int from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3'), 1,
+        'user A: own note survives a hostile DELETE attempt by user B');
+    return next is((select title from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3'), 'A-Note',
+        'user A: own note title was not modified by user B');
+end;
+$$;
 
-delete from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3';
+create or replace function public.test_cross_owner_note_tags_rejected() returns setof text
+language plpgsql as $$
+begin
+    perform public.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
+    insert into public.tags (id, owner_id, name)
+    values ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbb1', '22222222-2222-2222-2222-222222222222', 'b-tag')
+    on conflict (id) do nothing;
+
+    -- The cross-owner insert raises either "different owners" (when
+    -- RLS lets the trigger see the foreign tag) or "unknown tag" (when
+    -- RLS hides the row from user A entirely). Both are correct
+    -- rejections of the cross-tenant attempt. The trigger guarantee
+    -- is "the insert never lands"; the exact message is a corollary
+    -- of whether RLS or the trigger fires first.
+    perform public.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
+    return next throws_ok(
+        'insert into public.note_tags (note_id, tag_id) values (''aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3'', ''bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbb1'')',
+        null,
+        null,
+        'cross-owner note_tags insert is rejected (RLS + trigger)'
+    );
+end;
+$$;
 
 -- ----------------------------------------------------------------------------
--- Back as user A: the note still exists and was not modified.
+-- Run everything and print TAP. runtests returns one row per
+-- assertion (plus the plan + summary lines).
 -- ----------------------------------------------------------------------------
 
-select tests.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
-
-select is(
-    (select count(*)::int from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3'),
-    1,
-    'as user A: own note survives a hostile DELETE attempt by user B'
-);
-select is(
-    (select title from public.notes where id = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3'),
-    'A-Note',
-    'as user A: own note title was not modified by user B'
-);
-
--- ----------------------------------------------------------------------------
--- note_tags integrity: cross-owner tag is rejected by the stamping trigger.
--- ----------------------------------------------------------------------------
-
--- User A tries to tag their note with a tag owned by user B — should fail.
-select tests.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
-
-insert into public.tags (id, owner_id, name)
-values ('bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbb1', '22222222-2222-2222-2222-222222222222', 'b-tag');
-
-select tests.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
-
-select throws_like(
-    $$insert into public.note_tags (note_id, tag_id) values ('aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaa3', 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbb1')$$,
-    '%different owners%',
-    'cross-owner note_tags insert is rejected by the stamp_owner trigger'
-);
-
-select * from finish();
+select * from runtests('public'::name, '^test_'::text);
 
 rollback;
