@@ -27,6 +27,22 @@ importers:
         specifier: ^5.6.2
         version: 5.9.3
 
+  packages/ai:
+    dependencies:
+      '@notes-app/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@notes-app/embeddings':
+        specifier: workspace:*
+        version: link:../embeddings
+    devDependencies:
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.2
+        version: 2.1.9(@types/node@20.19.41)
+
   packages/attachments:
     dependencies:
       '@notes-app/domain':

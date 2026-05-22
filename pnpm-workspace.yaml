@@ -8,3 +8,4 @@ packages:
   - "packages/storage"
   - "packages/attachments"
   - "packages/embeddings"
+  - "packages/ai"
