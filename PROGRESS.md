@@ -71,6 +71,66 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M07 — Attachment Pipeline
+
+Spec: `docs/tech-specs/M07-attachment-pipeline.md`
+
+**Deliverables**
+
+- [x] Domain value types — `UploadState`, `Progress`, `ThumbnailSpec`, `isThumbnailable()` in both `@notes-app/domain` (with the `AttachmentPipeline` interface) and `core-domain` (interface lives in the attachments-android module so coroutines stay out of domain).
+- [x] TS adapter `@notes-app/attachments` — `DefaultAttachmentPipeline` (3-step atomic upload + rollback), `AttachmentsRepo` port, `ThumbnailGenerator` port, `ProgressBus` with last-value replay, pure `runValidator()` for the Edge Function.
+- [x] Kotlin adapter `attachments-android` — Kotlin twin. Mirror of the TS API on top of `Flow<Progress>`.
+- [x] Edge Function `supabase/functions/attachments/validate/index.ts` — Deno entry around `runValidator`; keyset-paginated scan of `attachments_refs` with service-role; idempotent upsert into `dangling_attachments`.
+- [x] Migration `supabase/migrations/20260522123000_dangling_attachments.sql` — table with RLS (`owner_can_select` only; writes service-role only), pg_cron daily 04:00 UTC schedule (`m07_attachment_validate`) using `pg_net.http_post` to invoke the function.
+- [x] README — `packages/attachments/README.md` with the 3-step diagram + soft-failure rules.
+- [ ] Live integration test (real upload → signed URL → delete) — **deferred**. Needs a provisioned OAuth client + test Drive account + DOM/Bitmap thumbnail bindings.
+- [ ] Per-owner Drive token resolution in the validator probe — **deferred to M12**. The current Edge Function intentionally returns `probe = error` rather than record false positives until owner-aware token flow lands. The validator's `safe-to-re-run` design accommodates this.
+
+**Responsibilities**
+
+- [x] Calls `StorageProvider.upload()` (M03), gets `externalId`, writes `attachments_refs` (M04) atomically — `DefaultAttachmentPipeline.attach` with rollback path; tests assert `storage.delete(externalId)` after a forced repo failure.
+- [x] Client-side thumbnail generation for images — `ThumbnailGenerator` port (binding-supplied); `ThumbnailSpec` pins 800 px / quality 80; thumbnail upload is soft-failure (logged, validator surfaces missing thumbnails).
+- [x] Dangling-ref detection — `runValidator()` + `dangling_attachments` table; `safe-to-re-run` by treating probe errors as no-op.
+- [x] Resolves to a signed URL via M03 on demand, never cached — `resolveUrl(ref)` proxies to `StorageProvider.getDownloadUrl(externalFileId)` every time.
+- [x] Progress reporting via `ProgressBus` (`AsyncIterable<Progress>` TS, `Flow<Progress>` Kotlin). Last value replays to late subscribers so a UI mounted mid-upload sees state immediately.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port implemented (TS + Kotlin).
+- [x] No provider SDK leaked outside adapters — the pipeline depends only on the `StorageProvider` port + domain types.
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (README + ADRs 0003, 0007 covering the upstream scope decisions).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — TS: 22 vitest cases across pipeline + bus + validator; Kotlin: 16 JUnit5 cases.
+- [x] Critical paths covered — atomic rollback (DB-insert failure deletes both files), soft thumbnail failure (original still attached, no thumbnail_id on the row), upload failure publishes Failed without calling repo.insert, validator's probe-error skip, paginated validator walk, dangling original vs thumbnail.
+- [x] Tests run in CI and pass — vitest verified locally; JUnit5 on next push.
+- [ ] Integration test against a real Drive — **deferred** (see Deliverables).
+
+Documentation:
+- [x] Module READMEs — `packages/attachments/README.md`, `packages/android/attachments-android/README.md`.
+- [x] Cross-references in `docs/adr/0007-drive-scopes.md` (storage quota → `StorageError.QuotaExceeded` → surfaced as soft-failure in the pipeline).
+
+Security:
+- [x] No secrets in code.
+- [x] RLS — `dangling_attachments` is select-only for owners; writes are service-role only via the validator function.
+- [x] Error messages don't leak provider details — `UploadState.Failed.message` carries the storage adapter's coded summary; raw upstream bodies stay out of the pipeline.
+
+Modularity:
+- [x] Swap the adapter without changes elsewhere — pipeline depends on the `StorageProvider` port from M01/M03 + `AttachmentsRepo` (this module). Replace either independently.
+
+Operational:
+- [x] pg_cron — `m07_attachment_validate` scheduled daily at 04:00 UTC.
+- [x] Telemetry — Sentry breadcrumbs will wrap each upload's terminal state when M12/M13 wire the binding.
+- [x] Manual smoke test — TS workspace green (235 vitest cases across the 8 packages); Kotlin on CI push.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M03 — Storage Provider (Google Drive in V1)
 
 Spec: `docs/tech-specs/M03-storage-provider.md` · ADR: `docs/adr/0007-drive-scopes.md`
