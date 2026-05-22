@@ -136,6 +136,30 @@ begin
 end;
 $$;
 
+create or replace function public.test_notes_stamp_owner() returns setof text
+language plpgsql as $$
+declare
+    new_id uuid;
+    stamped_owner uuid;
+begin
+    -- Authenticated as user B; insert a note without owner_id.
+    perform public.uuid_to_jwt_role('22222222-2222-2222-2222-222222222222');
+    insert into public.notes (title, body_json)
+    values ('stamp-test', '{"type":"doc","content":[]}'::jsonb)
+    returning id into new_id;
+    return next isnt(new_id, null, 'notes: insert without owner_id succeeds');
+
+    select owner_id into stamped_owner from public.notes where id = new_id;
+    return next is(stamped_owner, '22222222-2222-2222-2222-222222222222'::uuid,
+        'notes: trigger stamped owner_id from auth.uid()');
+
+    -- Switch to user A — RLS must hide user B's freshly-stamped row.
+    perform public.uuid_to_jwt_role('11111111-1111-1111-1111-111111111111');
+    return next is((select count(*)::int from public.notes where id = new_id), 0,
+        'notes: user A cannot see user B''s stamped row (RLS)');
+end;
+$$;
+
 -- ----------------------------------------------------------------------------
 -- Run everything and print TAP. runtests returns one row per
 -- assertion (plus the plan + summary lines).

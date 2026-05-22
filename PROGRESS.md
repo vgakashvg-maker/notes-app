@@ -150,6 +150,17 @@ M13 / M14 all landed in code. Stage 1 gate is reachable once M08
 (AI settings / routing) land. M13 was scoped to what's in the repo today;
 the deferred items above are the recognised seams those modules will fill.
 
+**Hotfix (2026-05-22)** — M04's `public.notes` was the only owner-bearing
+table without a `BEFORE INSERT` stamp-owner trigger, and M13's editor
+relied on that pattern. New migration
+`20260522150000_notes_stamp_owner.sql` mirrors
+`ai_conversations_stamp_owner` and is live on notes-dev. Editor now
+chains `.select("id").single()` and `router.replace("/notes/<id>")` on
+successful insert; raw Supabase error messages surface inline instead of
+the generic "Retry" button. New pgTAP case `test_notes_stamp_owner`
+(rls_notes.test.sql) covers stamp + cross-tenant blindness; full suite
+5/5 green.
+
 ---
 
 ### M14 — DevOps, Observability & Release

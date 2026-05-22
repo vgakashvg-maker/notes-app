@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { jsonToMarkdown, markdownToJson, type DocRoot } from "@notes-app/editor-schema";
@@ -23,8 +24,10 @@ type SaveState = "idle" | "saving" | "saved" | "error";
  * paragraphs, headings, lists, code, bold/italic.
  */
 export function Editor({ noteId, initialTitle, initialBodyJson }: EditorProps) {
+  const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const initialMarkdown = initialBodyToMarkdown(initialBodyJson);
 
   const editor = useEditor({
@@ -36,29 +39,46 @@ export function Editor({ noteId, initialTitle, initialBodyJson }: EditorProps) {
   const onSave = useCallback(async () => {
     if (editor === null) return;
     setSaveState("saving");
+    setSaveError(null);
     const md = editor.getText({ blockSeparator: "\n\n" });
     let nextJson: DocRoot;
     try {
       nextJson = markdownToJson(md);
-    } catch {
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : "Could not serialise body");
       setSaveState("error");
       return;
     }
     const supabase = getSupabaseBrowserClient();
+    const payload = {
+      title: title.trim() || "Untitled",
+      body_json: JSON.stringify(nextJson),
+    };
     if (noteId === null) {
-      const { error } = await supabase.from("notes").insert({
-        title: title.trim() || "Untitled",
-        body_json: JSON.stringify(nextJson),
-      });
-      setSaveState(error === null ? "saved" : "error");
-    } else {
-      const { error } = await supabase
+      // owner_id is stamped server-side by the notes_stamp_owner trigger
+      // (migration 20260522150000) from auth.uid(); the client never sets it.
+      const { data, error } = await supabase
         .from("notes")
-        .update({ title: title.trim() || "Untitled", body_json: JSON.stringify(nextJson) })
-        .eq("id", noteId);
-      setSaveState(error === null ? "saved" : "error");
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error !== null || data === null) {
+        setSaveError(error?.message ?? "Insert returned no row");
+        setSaveState("error");
+        return;
+      }
+      setSaveState("saved");
+      router.replace(`/notes/${data.id}`);
+    } else {
+      const { error } = await supabase.from("notes").update(payload).eq("id", noteId);
+      if (error !== null) {
+        setSaveError(error.message);
+        setSaveState("error");
+        return;
+      }
+      setSaveState("saved");
     }
-  }, [editor, noteId, title]);
+  }, [editor, noteId, router, title]);
 
   useEffect(() => {
     if (saveState !== "saved") return;
@@ -88,6 +108,11 @@ export function Editor({ noteId, initialTitle, initialBodyJson }: EditorProps) {
       <div className="prose prose-sm dark:prose-invert max-w-none">
         <EditorContent editor={editor} />
       </div>
+      {saveError !== null ? (
+        <p role="alert" className="text-xs text-red-600">
+          {saveError}
+        </p>
+      ) : null}
     </div>
   );
 }
