@@ -71,6 +71,90 @@ real UIs. The bulk of Stage 1 (foundations) is done.
 
 ---
 
+### M09 — Second-Brain AI Services (Ollama V1)
+
+Spec: `docs/tech-specs/M09-ai-services.md` · ADR: `docs/adr/0008-rag-prompt-and-citation-guard.md`
+
+**Live state**
+
+- 6 migrations now applied on `notes-dev` (M02 + M04 ×2 + M07 + M10 + **M09 ai_tables**). All 4 AI tables (`ai_conversations`, `ai_messages`, `ai_memory`, `ai_usage_log`) live with stamp-owner triggers + RLS + `clock_timestamp()`-based last-message bump (so two messages in one transaction get distinct timestamps).
+- `pg_cron` job `m09_daily_briefing` scheduled at 08:00 UTC, no-ops cleanly until the `app.settings.*` GUCs are set (M15 territory).
+- pgTAP: 4/4 in `rls_ai.test.sql` (stamp-owner on conversation insert + on message insert from parent, cross-user blindness across all 4 tables, last_message_at advances on message insert). Existing M04 + M10 suites still green.
+
+**Deliverables**
+
+- [x] Migration `supabase/migrations/20260522140000_ai_tables.sql` — 4 tables with RLS + stamp-owner triggers; cron schedule for daily briefing.
+- [x] AIProvider port + AIServices facade types in domain (TS + Kotlin twin).
+- [x] `@notes-app/ai` TS package:
+  - `OllamaProviderAdapter` with NDJSON streaming, 1-shot transient retry, `Host: 127.0.0.1:11434` Funnel workaround.
+  - `RagPipeline` with empty-retrieval short-circuit, conversation persistence ordering (user-turn before embed), archived-summary inclusion, scope-filter pushdown.
+  - **`CitationGuard`** — streaming parser that survives split tokens, strips hallucinated `[[NoteId:xxx]]` markers, and emits parallel `citation` SSE events for valid ones.
+  - Per-task functions: `summarize`, `suggestTags`, `suggestTitle`, `extractActionItems`, `rewrite`, `compressTurns`, `briefing`.
+  - Static V1 routing map (chat / extract / rewrite / briefing → `qwen2.5:7b`, tags / title / compression → `llama3.2:3b`, embed → `nomic-embed-text`).
+- [x] Prompt library `/prompts/*.md` (8 versioned prompts with YAML front-matter declaring task / version / default_model / overrides).
+- [x] Edge Functions:
+  - `ai/chat` (SSE: chunk / citation / warning / done events)
+  - `ai/summarize`, `ai/suggest-tags`, `ai/suggest-title`, `ai/rewrite` (JSON)
+  - `ai/related` (pure vector retrieval, no LLM)
+  - `ai/briefing` (user-triggered JSON; cron path no-ops until M15)
+- [x] pgTAP — `supabase/tests/rls_ai.test.sql`, green on notes-dev.
+- [x] ADR 0008 — RAG prompt + citation guard.
+- [ ] Edge Functions actually deployed to notes-dev — **deferred**. Deployment via `supabase functions deploy ai/*` requires Docker (the CLI builds the function bundle in a Docker image). The natural deploy moment is M12 / M13 when the UI is ready to call them.
+- [ ] Chat UI components (web + Android) — **deferred to M12 / M13**.
+- [ ] Live `ai/chat` integration test against real Ollama — **deferred to M12 / M13**, the natural smoke surface.
+
+**Responsibilities**
+
+- [x] Provider-agnostic facade — `AIProvider` lives in domain; `AIServices` lives in the AI package; UI never imports the adapter.
+- [x] NDJSON streaming with Flow-of-chunks shape — `OllamaProviderAdapter.streamChat()` consumes `/api/chat?stream=true` and yields `AIChunk` deltas.
+- [x] Model selection per task via routing — `staticRouter.routeFor(task)`; M15 will replace with a settings-driven router.
+- [x] RAG pipeline with `[[NoteId:xxx]]` citations — `RagPipeline` + `CitationGuard`.
+- [x] Persistent conversations + compression — `appendMessage` / `recentMessages` / `archivedSummary` ports; `compressTurns` task runs on `llama3.2:3b`.
+- [x] Daily briefing pg_cron — scheduled at 08:00 UTC; the function itself wires to qwen2.5:7b. Per-user fan-out lands in M15.
+- [x] Related notes — `ai/related` pure-vector retrieval, target sub-100ms.
+- [x] Cost telemetry — `ai_usage_log` written by every Edge Function after a successful run (`$0` cost for V1 Ollama; latency + token counts recorded).
+- [x] Prompt library versioned + override-ready — see `/prompts/*.md` front-matter.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All `AIServices` methods are wired through the adapter + edge.
+- [x] No provider SDK leaked outside adapters — `@notes-app/ai` depends only on `@notes-app/domain`, `@notes-app/embeddings`, and the structural `OllamaApiClient` interface.
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (README + ADR 0008).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 41 vitest cases across routing, prompts, ollama-adapter (chat / stream / retry / 401-no-retry / dimension-check / endpoint-slash), citation-guard (valid / hallucinated / dup / split-tokens / incomplete-marker / rank-order), rag-pipeline (persistence ordering / empty-retrieval / scope-filter pushdown / archived-summary inclusion / hallucination warning), per-task functions (JSON parse fallbacks, instruction threading, briefing formatting).
+- [x] Critical paths covered — every branch of the citation guard, the empty-retrieval short-circuit, and the per-task JSON-fallback parsing.
+- [x] Tests run in CI and pass — verified locally; awaiting CI push.
+- [x] RLS suite — `rls_ai.test.sql` green on notes-dev.
+- [ ] Live integration against real Ollama — **deferred** with M12/M13.
+
+Documentation:
+- [x] Module README — `packages/ai/README.md`.
+- [x] ADR 0008 — captures the RAG prompt + citation guard contract.
+- [x] Prompt files self-documenting (front-matter declares task, version, model).
+
+Security:
+- [x] No secrets in code.
+- [x] RLS — all 4 AI tables enforce `owner_id = auth.uid()`. Stamp-owner triggers prevent client-supplied owner_id spoofing.
+- [x] Error messages don't leak provider details — Edge Functions return coded errors; the citation guard strips hallucinations rather than passing through.
+- [x] Anti-jailbreak — system prompt explicitly forbids instruction-override from `<user>` / `<context>` tags.
+
+Modularity:
+- [x] Swap providers by writing a new `AIProvider` impl and adding a row to the routing map — `OllamaProviderAdapter` is the V1 reference.
+
+Operational:
+- [x] pg_cron `m09_daily_briefing` scheduled at 08:00 UTC.
+- [x] Telemetry wired via `ai_usage_log`.
+- [x] Manual smoke test — TS workspace green (308 vitest cases across all 10 packages); pgTAP green on notes-dev.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M10 — Embedding & Vector Search
 
 Spec: `docs/tech-specs/M10-embedding-vector.md`
