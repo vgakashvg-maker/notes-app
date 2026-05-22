@@ -25,4 +25,5 @@ include(
     ":editor-schema",
     ":sync-core",
     ":storage-android",
+    ":attachments-android",
 )
