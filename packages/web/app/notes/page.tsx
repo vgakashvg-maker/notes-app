@@ -29,10 +29,7 @@ async function NotesList() {
     <ul className="divide-y divide-ink/5">
       {notes.map((n) => (
         <li key={n.id}>
-          <Link
-            href={`/notes/${n.id}`}
-            className="flex items-baseline justify-between gap-4 py-3"
-          >
+          <Link href={`/notes/${n.id}`} className="flex items-baseline justify-between gap-4 py-3">
             <span className="text-sm font-medium">
               {n.is_pinned ? "📌 " : ""}
               {n.title || "Untitled"}

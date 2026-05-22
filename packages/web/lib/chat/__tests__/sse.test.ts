@@ -64,7 +64,7 @@ describe("SseParser", () => {
   it("ignores SSE comments and unknown events", () => {
     const p = new SseParser();
     const events = p.feed(
-      ': keep-alive\n\n' +
+      ": keep-alive\n\n" +
         'event: mystery\ndata: {"x":1}\n\n' +
         'event: chunk\ndata: {"delta":"ok"}\n\n',
     );

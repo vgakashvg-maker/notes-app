@@ -6,8 +6,8 @@ export default function SettingsPage() {
       <header>
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-ink-muted">
-          AI model routing, account, and storage settings will surface here as
-          M11 / M15 land. For now: theme + sign-out.
+          AI model routing, account, and storage settings will surface here as M11 / M15 land. For
+          now: theme + sign-out.
         </p>
       </header>
       <section aria-labelledby="appearance" className="space-y-2">

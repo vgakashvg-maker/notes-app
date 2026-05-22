@@ -57,11 +57,7 @@ export function Editor({ noteId, initialTitle, initialBodyJson }: EditorProps) {
     if (noteId === null) {
       // owner_id is stamped server-side by the notes_stamp_owner trigger
       // (migration 20260522150000) from auth.uid(); the client never sets it.
-      const { data, error } = await supabase
-        .from("notes")
-        .insert(payload)
-        .select("id")
-        .single();
+      const { data, error } = await supabase.from("notes").insert(payload).select("id").single();
       if (error !== null || data === null) {
         setSaveError(error?.message ?? "Insert returned no row");
         setSaveState("error");
