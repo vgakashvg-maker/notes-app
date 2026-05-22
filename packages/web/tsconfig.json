@@ -1,10 +1,26 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
+    "noEmit": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "allowJs": true,
     "types": ["node"],
-    "noEmit": true
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": [
+    "next-env.d.ts",
+    "vitest-env.d.ts",
+    "app/**/*",
+    "components/**/*",
+    "lib/**/*",
+    "src/**/*",
+    "middleware.ts",
+    "instrumentation.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
 }
