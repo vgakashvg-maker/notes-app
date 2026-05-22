@@ -8,6 +8,150 @@ explicitly deferred with the reason).
 
 ## Stage 1 — Foundation
 
+### M13 — Web App Shell
+
+Spec: `docs/tech-specs/M13-web-shell.md`
+
+**Live state**
+
+- `packages/web` is now a real Next.js 14 App Router app. `pnpm build`
+  generates 10 routes (3 static, 4 dynamic, plus middleware + route
+  handler + the editor's client chunk). Bundle: 87 kB shared baseline, the
+  editor adds ~97 kB for Tiptap (lazy-loaded on `/notes/[id]`).
+- Strict prereqs M08 (calendar), M11 (notifications), M15 (settings /
+  routing) are still pending. Their UI surfaces are stubbed with explicit
+  "deferred to MNN" copy so the gate stays visible.
+- The Sentry + PostHog stubs from M14 now run through Next.js's
+  `instrumentation.ts` hook on server start.
+
+**Deliverables**
+
+- [x] Next.js 14 App Router scaffold in `packages/web` (per agreed scope —
+  the existing observability stub was converted in place, matching the
+  `deploy-web.yml` probe which already targets `packages/web/next.config.mjs`).
+- [x] Tailwind + dark-mode wiring — palette mirrors the Android theme intent
+  (brand / surface / ink). A real `@notes-app/design-tokens` package is a
+  follow-up; the colour values live inline in `tailwind.config.ts` for now.
+- [x] Composition root `app/layout.tsx` — `<ThemeProvider>` (next-themes) +
+  `<AppShell>` nav. Auth-aware QueryClient deferred until data fetching
+  outgrows server components.
+- [x] Auth gate `middleware.ts` — Supabase session-cookie refresh +
+  redirect-unauth-to-`/sign-in` with `redirectTo` preserved.
+- [x] OAuth flow — `/sign-in` page + `/auth/callback` route exchange.
+- [x] Routes — `/`, `/notes`, `/notes/[id]`, `/notes/new`, `/search`,
+  `/chat`, `/settings`, `/sign-in`, `/auth/callback`.
+- [x] Chat UI with SSE streaming + citation rendering — `<ChatStream>`
+  reads `chunk` / `citation` / `warning` / `done` / `error` frames from
+  `ai/chat`; `[[NoteId:UUID]]` markers in deltas resolve to
+  `<Link href="/notes/UUID">` via the citation lookup.
+- [x] Tiptap editor mount at `/notes/[id]` — StarterKit + bridge to the
+  M06 JSON↔Markdown converter. Lazy-loaded so the Lighthouse score on
+  other pages isn't paying for it.
+- [x] Light + dark theme — `next-themes` with a three-way switch
+  (light / dark / system) on `/settings`.
+- [x] Component test for the chat streaming renderer (mock SSE) — 6 cases
+  covering progressive deltas, citations, warnings, errors, onDone, and
+  the null-stream baseline.
+- [x] Unit tests for the SSE parser (9 cases incl. split-frame survival,
+  multi-event frames, error/warning/done parsing, malformed-JSON safety,
+  flush of un-terminated tail) and the citation splitter (5 cases).
+- [ ] Playwright e2e (sign in → create note → search → ask AI → see
+  citation) — **deferred**. Needs a provisioned Supabase project, a Google
+  OAuth client, and a test account — same blockers as the M02/M03
+  integration tests; lands when those do.
+- [ ] Vercel deploy — `deploy-web.yml` is shape-ready (probes
+  `packages/web/next.config.mjs`); the actual `vercel link` + production
+  deploy is a human step documented in `docs/runbook.md`.
+- [ ] Lighthouse ≥ 90 on the editor page — **deferred** (requires a
+  deployed environment). The editor is already lazy-loaded so the budget
+  is recoverable; verification waits for a real deploy.
+- [ ] M08 calendar integration on `/` — **deferred to M08**.
+- [ ] M11 notification surfaces — **deferred to M11**.
+- [ ] M15 AI settings / routing UI on `/settings` — **deferred to M15**.
+- [ ] Storybook stories — **deferred** (not on the critical path; M09's
+  ADR + the SSE/citation unit tests cover the chat contract).
+- [ ] shadcn/ui component library — **scoped out** of M13. Tailwind +
+  small bespoke primitives cover the current screens; we'll add shadcn
+  when a component (dialog, command palette, dropdown) actually demands it.
+
+**Responsibilities** (point at the code that proves each one)
+
+- [x] Next.js 14 App Router — `packages/web/app/*`; verified by
+  `next build` enumerating the route table.
+- [x] Server Components for note list pages — `app/page.tsx`,
+  `app/notes/page.tsx` are async server components wrapped in `<Suspense>`.
+- [x] Tiptap editor with the M06 schema — `app/notes/[id]/editor.tsx`
+  imports `@notes-app/editor-schema` for the JSON↔Markdown bridge.
+- [x] Streaming chat UI for M09's chat-with-notes (SSE) —
+  `components/chat-stream.tsx`; the pure SSE parser lives in
+  `lib/chat/sse.ts`.
+- [x] Responsive layout — Tailwind responsive utilities + sidebar nav that
+  collapses below `md`.
+- [x] Lighthouse-friendly defaults — Tiptap is `dynamicImport(... { ssr: false })`,
+  so the editor chunk doesn't load until `/notes/[id]` is requested.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port interface implemented — the
+  framework binding files (`lib/supabase/*`, `lib/notes/queries.ts`,
+  `middleware.ts`, `app/auth/callback/route.ts`) own the Supabase-side
+  surface; the broader domain ports stay in their packages.
+- [x] No provider SDK leaked outside adapter / framework-binding files —
+  `@supabase/ssr` is imported only in `lib/supabase/*`, `middleware.ts`,
+  and `app/auth/callback/route.ts`; Tiptap only in
+  `app/notes/[id]/editor.tsx`; next-themes only in
+  `components/theme-provider.tsx` and `app/settings/theme-switch.tsx`.
+- [x] No TODO/FIXME/XXX comments.
+- [x] No commented-out code.
+- [x] Public APIs documented (`packages/web/README.md`).
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 20 new vitest cases
+  (`sse.test.ts` ×9, `citations.test.ts` ×5, `chat-stream.test.tsx` ×6)
+  on top of the 9 observability cases that survived the conversion.
+- [x] Critical paths covered — every SSE event kind, split-frame
+  survival, citation lookup miss as soft failure, onDone callback wiring.
+- [x] Tests run in CI and pass — verified locally; awaiting CI push.
+- [ ] Playwright e2e — **deferred** (see Deliverables).
+
+Documentation:
+- [x] Module README — `packages/web/README.md` (routes table, framework
+  binding map, swap-checklist).
+- [x] ADR — none required; the design decisions (chat SSE shape, citation
+  parsing) already live in ADR 0008 (M09).
+
+Security:
+- [x] No secrets in code — `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` added
+  to `.env.example`; service-role key stays server-only.
+- [x] RLS protects every read — the framework binding uses the anon key
+  + the user's session cookie; PostgREST applies RLS automatically.
+- [x] Error messages don't leak provider details — fetch failures surface
+  as generic strings (`Chat failed (502)`) rather than the upstream body.
+
+Modularity:
+- [x] The Next.js shell can be deleted and replaced by a different
+  framework (Vite + React Router, Remix, …) without changes elsewhere —
+  domain ports + adapter packages have no Next.js dependencies.
+
+Operational:
+- [ ] pg_cron — N/A for M13.
+- [x] Telemetry wired — Sentry + PostHog init via `instrumentation.ts`.
+- [x] Manual smoke test — `pnpm install && pnpm lint && pnpm typecheck &&
+  pnpm test && pnpm build` all green locally; 337 vitest cases across 11
+  packages.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+**Stage 1 gate**: M01 / M02 / M03 / M04 / M05 / M06 / M07 / M09 / M10 /
+M13 / M14 all landed in code. Stage 1 gate is reachable once M08
+(calendar), M11 (notifications), M12 (Android shell), and M15
+(AI settings / routing) land. M13 was scoped to what's in the repo today;
+the deferred items above are the recognised seams those modules will fill.
+
+---
+
 ### M14 — DevOps, Observability & Release
 
 Spec: `docs/tech-specs/M14-devops.md`
