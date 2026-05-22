@@ -5,3 +5,4 @@ packages:
   - "packages/auth"
   - "packages/notes"
   - "packages/editor-schema"
+  - "packages/storage"
