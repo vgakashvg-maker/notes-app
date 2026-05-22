@@ -11,3 +11,4 @@ export * from "./auth.js";
 export * from "./storage.js";
 export * from "./attachment-pipeline.js";
 export * from "./ai.js";
+export * from "./ai-routing.js";
