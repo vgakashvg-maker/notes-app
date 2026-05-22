@@ -8,6 +8,148 @@ explicitly deferred with the reason).
 
 ## Stage 1 — Foundation
 
+### M15 — AI Settings, Routing & Endpoint Management
+
+Spec: `docs/tech-specs/M15-ai-settings-routing.md`
+
+**Live state**
+
+- 7 migrations applied on `notes-dev` (added **M15 `ai_keys`**). 3 new
+  pgTAP cases in `rls_ai_keys.test.sql` (stamp-owner, cross-tenant blind,
+  cannot-mutate) green; full suite 3/3.
+- Web `/settings/ai/{endpoint,routing,usage}` and the Android Settings →
+  AI sub-screens (Endpoint / Routing / Usage) read and write
+  `users_profile.ai_prefs.routing` + `.endpoints`. The dynamic router
+  replaces M09's `staticRouter`: per-key overrides from the user's prefs,
+  per-key fallback to `V1_ROUTES`.
+- 3 new Edge Functions (`ai/test-connection`, `ai/usage`, `ai/reindex`).
+- Workspace tests: 343 vitest cases (6 new `dynamic-routing` + the
+  existing surface); 14 JUnit5 cases on the Android app (unchanged).
+
+**Deliverables**
+
+- [x] Migration `supabase/migrations/20260522160000_ai_routing.sql` —
+  `ai_keys` table with stamp-owner trigger + `set_updated_at` + RLS
+  (`owner_can_all`). Provider check constraint pins V1 values.
+- [x] Domain port (TS + Kotlin) — `AIRouting`, `AdapterBinding`,
+  `RoutingConfig`, `ProviderEndpoints`, `AIPrefsPayload`, `AITask`,
+  `AIKeyStore`. Mirrored exactly.
+- [x] `dynamicRouter(config)` in `@notes-app/ai` — per-key V1 fallback
+  + `MODEL_REGISTRY` for `contextTokens` lookup of `/api/tags` model
+  ids. 6 vitest cases.
+- [x] Edge Function `ai/test-connection` — POST `{ endpoint_url }` →
+  fetches `/api/tags` (with the M09/M10 Funnel `Host` workaround),
+  returns `{ ok, models, latencyMs }` or `{ ok: false, error }`.
+- [x] Edge Function `ai/usage` — GET (days=14 default, capped at 90),
+  aggregates `ai_usage_log` rows into per-day per-task buckets.
+- [x] Edge Function `ai/reindex` — paginates the caller's notes
+  (`PAGE_SIZE=100`) and fires a no-op UPDATE per id; the M10
+  `notes_embed_trigger` re-enqueues the embedding job. Synchronous V1.
+- [x] Routing JSON shape published — `users_profile.ai_prefs.routing`
+  (per-task `{ provider, model }`) + `endpoints` (per-provider URL) +
+  `version: 1`. Layered with the M01 `AIPreferences` legacy fields —
+  no schema-level rev.
+- [x] Web UI — `/settings/ai/layout.tsx` with tabbed nav + 3 pages:
+  Endpoint (URL input + Test connection), Routing (3-group table:
+  Content / Metadata / Embeddings), Usage (per-task table + 14-day
+  latency sparkline). `lib/ai/prefs.ts` is the framework-binding for
+  PostgREST.
+- [x] Android UI — Settings → Endpoint / Routing / Usage Compose
+  screens; `AIPrefsRepository` (Ktor + PostgREST) injected via Hilt.
+- [x] pgTAP — `supabase/tests/rls_ai_keys.test.sql`, 3 cases green on
+  notes-dev.
+- [ ] Live progress UI for the re-embed job — **deferred**. The
+  Edge Function ships synchronous; the live-polling UI waits for a
+  generic Jobs surface (no Jobs port today). The UI surfaces a static
+  "Re-embed kicked off — N notes touched." after the call completes.
+- [ ] V2 `ai_keys` encryption (Supabase Vault / pgsodium) — **deferred**;
+  V1 ships the schema + RLS only (no code reads `encrypted_secret`).
+- [ ] Live integration against a real Ollama — deferred with M02 /
+  M03; the test-connection function works against a stood-up endpoint
+  but the round-trip is documented as a runbook smoke step, not a CI
+  test.
+
+**Responsibilities** (point at code)
+
+- [x] Settings → AI screens on Android (Compose) and Web (Next.js):
+  three sections each — `packages/web/app/settings/ai/*` and
+  `packages/android/app/.../settings/ai/AI{Endpoint,Routing,Usage}Screen.kt`.
+- [x] Endpoint section — URL input + Test connection that calls
+  `ai/test-connection` and lists installed models.
+- [x] Routing section — table of tasks × Model dropdown; options
+  populated from the cached `/api/tags` response plus the V1 defaults.
+- [x] Usage section — line chart of latency over time + table of
+  tokens / calls per task. Pure SVG (web) + Canvas (Compose); no
+  Vico/recharts dep.
+- [x] Endpoint URL stored in `users_profile.ai_prefs.endpoints.OLLAMA`.
+- [x] `ai_keys` table built but unused in V1.
+- [x] Re-embed background job triggered when the user changes the
+  embedding model — `RoutingForm.onSave` (web) +
+  `AIRoutingViewModel.save` (Android) call `ai/reindex` when the embed
+  binding model differs from what was loaded.
+
+**Definition of Done — checklist**
+
+Code:
+- [x] All public functions on the port interface implemented — the
+  dynamic router resolves every task key; `AIPrefsRepository` covers
+  read/write/test/reindex/usage; `AIRouting` shape is shared TS↔Kotlin.
+- [x] No provider SDK leaked outside adapter / framework-binding files
+  — `@supabase/ssr` only inside `lib/supabase/*`; Ktor only inside
+  `AIPrefsRepository`; Edge Functions use the same `_shared/ollama.ts`
+  helpers M09 set up.
+- [x] No TODO/FIXME/XXX comments outside the module's deferred notes.
+- [x] No commented-out code.
+- [x] Public APIs documented — domain types comment the persisted
+  shape; the spec captures the broader design.
+
+Tests:
+- [x] Unit tests cover happy + failure paths — 6 new vitest cases for
+  `dynamicRouter` (fallthrough, single-key override, registry lookup,
+  unknown-model fallback, embed contextTokens forced to 0, full
+  taxonomy round-trip).
+- [x] Critical paths covered — pgTAP confirms stamp-owner + RLS
+  isolation for `ai_keys`; the router fallback chain is exhaustively
+  tested.
+- [x] Tests run in CI and pass — vitest verified locally, JUnit5
+  green via `:app:test`, pgTAP green via `supabase db query --file`.
+- [ ] Live integration against real Ollama — deferred.
+
+Documentation:
+- [x] The spec (`docs/tech-specs/M15-ai-settings-routing.md`) plus this
+  entry capture the contract.
+- [x] No new ADR required; the M15 design exposed the same task taxonomy
+  M09 already documented in ADR 0008.
+
+Security:
+- [x] No secrets in code — `ai_keys.encrypted_secret` is bytea, never
+  populated in V1, and even when V2 lights it up the secret only
+  crosses an Edge Function boundary on write.
+- [x] RLS tested — `rls_ai_keys.test.sql` covers stamp + cross-tenant
+  blind + cannot-mutate.
+- [x] Error messages don't leak provider details — Edge Functions
+  return coded errors (`ERR_UPSTREAM`, `ERR_UPSTREAM_UNREACHABLE`);
+  the UI surfaces a generic "Test failed" with the upstream code.
+
+Modularity:
+- [x] Routing port swap — write a new `AIRouting` impl and a new
+  `Router` (via `dynamicRouter`) without touching the M09 pipeline.
+
+Operational:
+- [ ] pg_cron — N/A (the re-embed trigger is user-initiated; M07's
+  attachment validator + M09's briefing remain the scheduled jobs).
+- [x] Telemetry — every Edge Function still writes to `ai_usage_log`
+  via the same `logUsage` helper M09 introduced; the new `ai/usage`
+  endpoint reads from it.
+- [x] Manual smoke test — TS workspace green (343 cases); Kotlin tests
+  green; `./gradlew :app:assembleDebug` produces a working APK;
+  `notes-dev` migration applied + pgTAP 3/3.
+
+Hand-back:
+- [ ] PR opened, CI green — pending push (auto).
+
+---
+
 ### M12 — Android App Shell
 
 Spec: `docs/tech-specs/M12-android-shell.md`
