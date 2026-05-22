@@ -24,4 +24,5 @@ include(
     ":notes-android",
     ":editor-schema",
     ":sync-core",
+    ":storage-android",
 )
