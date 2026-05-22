@@ -6,3 +6,4 @@ packages:
   - "packages/notes"
   - "packages/editor-schema"
   - "packages/storage"
+  - "packages/attachments"
