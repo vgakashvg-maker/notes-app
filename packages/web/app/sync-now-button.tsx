@@ -46,9 +46,12 @@ export function SyncNowButton() {
           }),
         },
       );
-      const body = (await resp.json().catch(() => null)) as
-        | { ok?: boolean; upserted?: number; deleted?: number; error?: { message?: string } }
-        | null;
+      const body = (await resp.json().catch(() => null)) as {
+        ok?: boolean;
+        upserted?: number;
+        deleted?: number;
+        error?: { message?: string };
+      } | null;
       if (resp.ok && body?.ok) {
         if (typeof window !== "undefined") {
           window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
@@ -77,7 +80,9 @@ export function SyncNowButton() {
     if (!Number.isFinite(last) || Date.now() - last > STALE_AFTER_MS) {
       void sync({ silent: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // One-shot on mount; `autoRanRef` enforces single-fire without
+    // needing `sync` as a dep. eslint-plugin-react-hooks isn't loaded
+    // in this config, so no disable directive is needed.
   }, []);
 
   return (
