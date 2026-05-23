@@ -18,6 +18,8 @@ import {
   type NoteSnapshot,
 } from "../../../packages/embeddings/src/index.ts";
 
+import { corsServe } from "../_shared/cors.ts";
+
 declare const Deno: {
   env: { get(name: string): string | undefined };
   serve(handler: (req: Request) => Response | Promise<Response>): void;
@@ -27,7 +29,7 @@ const SUPABASE_URL = mustEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = mustEnv("SUPABASE_SERVICE_ROLE_KEY");
 const OLLAMA_ENDPOINT_URL = mustEnv("OLLAMA_ENDPOINT_URL");
 
-Deno.serve(async (req: Request) => {
+corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "Only POST is allowed.");
   }

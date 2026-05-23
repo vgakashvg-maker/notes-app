@@ -6,6 +6,8 @@
 
 import { jsonError, resolveUserId } from "../_shared/ai/ollama.ts";
 
+import { corsServe } from "../_shared/cors.ts";
+
 declare const Deno: {
   serve(handler: (req: Request) => Response | Promise<Response>): void;
 };
@@ -18,7 +20,7 @@ interface OllamaTagsResponse {
   }>;
 }
 
-Deno.serve(async (req: Request) => {
+corsServe(async (req: Request) => {
   if (req.method !== "POST") return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "POST only");
   const userId = await resolveUserId(req);
   if (userId === null) return jsonError(401, "ERR_UNAUTHENTICATED", "Missing JWT");

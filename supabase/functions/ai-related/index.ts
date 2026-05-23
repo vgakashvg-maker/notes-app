@@ -9,9 +9,11 @@
 import { DEFAULT_NAMESPACE } from "../../../packages/embeddings/src/index.ts";
 import { jsonError, mustEnv, resolveUserId } from "../_shared/ai/ollama.ts";
 
+import { corsServe } from "../_shared/cors.ts";
+
 declare const Deno: { serve(h: (req: Request) => Response | Promise<Response>): void };
 
-Deno.serve(async (req: Request) => {
+corsServe(async (req: Request) => {
   if (req.method !== "POST") return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "POST only");
   const jwt = req.headers.get("Authorization")?.slice("bearer ".length).trim() ?? "";
   const userId = await resolveUserId(req);

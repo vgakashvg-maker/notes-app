@@ -19,6 +19,8 @@ import {
 import type { ExternalProviderId } from "../../../packages/domain/src/auth.ts";
 
 // Deno globals — present in the function runtime.
+import { corsServe } from "../_shared/cors.ts";
+
 declare const Deno: {
   env: { get(name: string): string | undefined };
   serve(handler: (req: Request) => Response | Promise<Response>): void;
@@ -35,7 +37,7 @@ const PROVIDER_TO_COLUMN: Record<ExternalProviderId, string> = {
   GOOGLE_USERINFO: "google_userinfo_refresh_token",
 };
 
-Deno.serve(async (req: Request) => {
+corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "Only POST is allowed.");
   }
