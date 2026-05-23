@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { listRecentNotes } from "../lib/notes/queries";
 import { listEventsInRange, todayRange } from "../lib/calendar/queries";
+import { SyncNowButton } from "./sync-now-button";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,12 @@ export default function TodayPage() {
         <p className="text-sm text-ink-muted">Calendar events and recent notes.</p>
       </header>
       <section aria-labelledby="today-events">
-        <h2 id="today-events" className="mb-3 text-sm font-medium text-ink-muted">
-          Events
-        </h2>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 id="today-events" className="text-sm font-medium text-ink-muted">
+            Events
+          </h2>
+          <SyncNowButton />
+        </div>
         <Suspense fallback={<p className="text-sm">Loading…</p>}>
           <TodayEvents />
         </Suspense>
