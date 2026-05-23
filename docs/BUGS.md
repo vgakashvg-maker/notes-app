@@ -117,3 +117,17 @@ The 8 hypotheses originally listed have all been considered. None promoted to a 
 ## 6. Conventions
 
 (unchanged — see prior version in git history)
+
+---
+
+## 7. Post-completion bug (filed and fixed after autonomous run wrap-up)
+
+### ✅ BUG-017 · P1 · START.bat silently failed because `_start.ps1` had a PowerShell parser error
+
+- **Found by**: user reported "Your start.bat itself has bug" on 2026-05-23 after autonomous run.
+- **Symptom**: Double-clicking `START.bat` flashed a cmd window and closed immediately. Nothing started. No visible error because cmd had no pause.
+- **Root cause**: `_start.ps1` line 60 used `"...$env:APPDATA\npm;$env:LOCALAPPDATA\npm-global..."` — a double-quoted string with consecutive `$env:VAR\literal` patterns. Windows PowerShell 5.1's parser mis-tokenized this, treating `\npm` and `\npm-global` as expressions outside the string. The script never reached the `claude.exe` launch.
+- **Repro**: `& powershell -NoProfile -ExecutionPolicy Bypass -File scripts\_start.ps1` → ParseError "Unexpected token '\npm' in expression or statement."
+- **Fix**: Rewrote the PATH building to use `Join-Path` + array `-join ";"` instead of double-quoted interpolation. Plus added `if errorlevel 1 (pause)` to `START.bat` so future silent failures surface visibly.
+- **Verified**: `[System.Management.Automation.Language.Parser]::ParseFile()` returns 0 errors. `pnpm tsx`-equivalent dry run runs to the `& $exe` line without parser error.
+- **Status**: ✅ closed

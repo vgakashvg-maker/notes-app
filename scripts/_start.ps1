@@ -2,14 +2,15 @@ $ErrorActionPreference = "Stop"
 
 $Host.UI.RawUI.WindowTitle = "Notes App - Claude Code"
 
-# Try every known location where Claude Code might be installed.
-# Use [IO.File]::Exists which bypasses some PowerShell access checks
-# that Test-Path is subject to under restricted contexts.
+# Resolve every known location where Claude Code might be installed.
+$localApp = $env:LOCALAPPDATA
+$roaming  = $env:APPDATA
+
 $candidates = @(
-    "$env:LOCALAPPDATA\npm-global\node_modules\@anthropic-ai\claude-code\bin\claude.exe",
-    "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe",
+    (Join-Path $localApp "npm-global\node_modules\@anthropic-ai\claude-code\bin\claude.exe"),
+    (Join-Path $roaming  "npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe"),
     "C:\Tools\npm-global\node_modules\@anthropic-ai\claude-code\bin\claude.exe",
-    "$env:LOCALAPPDATA\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude-code\2.1.146\claude.exe"
+    (Join-Path $localApp "Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude-code\2.1.146\claude.exe")
 )
 
 $exe = $null
@@ -17,29 +18,24 @@ $attempted = @()
 foreach ($p in $candidates) {
     $attempted += $p
     try {
-        if ([System.IO.File]::Exists($p)) {
-            $exe = $p
-            break
-        }
+        if ([System.IO.File]::Exists($p)) { $exe = $p; break }
     } catch { }
 }
 
-# Last-resort fallback: ask Get-Command (it searches PATH and registered exe locations)
+# Fallback: ask Get-Command for anything on PATH
 if (-not $exe) {
     try {
         $cmd = Get-Command claude -ErrorAction SilentlyContinue
-        if ($cmd) {
-            $exe = $cmd.Source
-        }
+        if ($cmd) { $exe = $cmd.Source }
     } catch { }
 }
 
 if (-not $exe) {
     Write-Host ""
     Write-Host " ERROR: Could not find Claude Code at any of these paths:" -ForegroundColor Red
-    foreach ($p in $attempted) { Write-Host "   - $p" -ForegroundColor DarkGray }
+    foreach ($p in $attempted) { Write-Host ("   - " + $p) -ForegroundColor DarkGray }
     Write-Host ""
-    Write-Host " Try reinstalling — open a regular PowerShell and run:" -ForegroundColor Yellow
+    Write-Host " To reinstall, run this in a regular PowerShell window:" -ForegroundColor Yellow
     Write-Host '   & "C:\Program Files\nodejs\npm.cmd" install -g @anthropic-ai/claude-code'
     Write-Host ""
     Read-Host "Press Enter to close"
@@ -50,14 +46,21 @@ Write-Host ""
 Write-Host " ============================================" -ForegroundColor Cyan
 Write-Host "  Claude Code is starting..." -ForegroundColor Cyan
 Write-Host "  Folder: C:\Users\vgaka\notes-app" -ForegroundColor Cyan
-Write-Host "  Using:  $exe" -ForegroundColor DarkGray
+Write-Host ("  Using:  " + $exe) -ForegroundColor DarkGray
 Write-Host " ============================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  First message to send: status" -ForegroundColor Yellow
-Write-Host ""
 
-# Make sure node and npm globals are on PATH
-$env:PATH = "C:\Program Files\nodejs;$env:APPDATA\npm;$env:LOCALAPPDATA\npm-global;$env:PATH"
+# Build PATH by concatenation so the parser does not get confused by
+# colon-prefixed env vars adjacent to backslashes. (The previous version
+# using "$env:APPDATA\npm" inside a double-quoted string tripped the
+# Windows PowerShell 5.1 parser — that was the START.bat bug.)
+$pathParts = @(
+    "C:\Program Files\nodejs",
+    (Join-Path $roaming  "npm"),
+    (Join-Path $localApp "npm-global"),
+    $env:PATH
+)
+$env:PATH = $pathParts -join ";"
 
 # Go to project folder
 Set-Location "C:\Users\vgaka\notes-app"
