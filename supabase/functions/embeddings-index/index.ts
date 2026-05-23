@@ -33,8 +33,14 @@ corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "Only POST is allowed.");
   }
-  const auth = req.headers.get("Authorization");
-  if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
+  // Internal endpoint — only service-role JWTs are allowed. We accept
+  // any token signed with the project's JWT secret whose payload's role
+  // claim is `service_role`. (String-equality with SUPABASE_SERVICE_ROLE_KEY
+  // is brittle when the platform's injected env var drifts from the
+  // currently-issued key.)
+  const auth = req.headers.get("Authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length).trim() : "";
+  if (!isServiceRoleJwt(token)) {
     return jsonError(401, "ERR_UNAUTHENTICATED", "Internal endpoint.");
   }
 
@@ -171,4 +177,30 @@ function jsonError(status: number, code: string, message: string): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Decode a Supabase JWT and return true iff the payload's `role` claim
+ * is `service_role`. Signature verification is delegated to the
+ * Supabase gateway (this function is deployed *without*
+ * `--no-verify-jwt`), so by the time we see the token the gateway has
+ * already proven it's project-signed. We only need to inspect the
+ * claims to enforce the role restriction.
+ */
+function isServiceRoleJwt(token: string): boolean {
+  if (token.length === 0) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  const payloadB64 = parts[1] ?? "";
+  let payload: unknown;
+  try {
+    payload = JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return false;
+  }
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    (payload as { role?: unknown }).role === "service_role"
+  );
 }
