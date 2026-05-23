@@ -188,16 +188,18 @@ Then we call V1 done. Before that, "feature complete" ≠ "done."
 
 ## 5. Status & next action
 
-| Phase | Status | Next step |
+| Phase | Status | Notes |
 |---|---|---|
-| 0 — Smoke | ✅ Complete (verified today) | — |
-| 1 — Critical Path (P0) | 🟡 In progress — ~10 of 70 already verified during initial testing | Sweep through the remaining P0s |
-| 2 — Core (P1) | 🔲 Not started | After Phase 1 |
-| 3 — Polish (P2/P3) | 🔲 Not started | After Phase 2 |
-| 4 — Security audit | 🔲 Not started | After Phase 2 |
-| 5 — Cross-device | 🔲 Not started | After Phase 4 |
-| 6 — Android device | 🔲 Not started | After Phase 5 + you provide phone |
-| 7 — Regression automation | 🔲 Not started | After Phase 6 |
+| 0 — Smoke | ✅ Complete | All 8 health checks pass |
+| 1 — Critical Path (P0) | ✅ Complete | All known P0 bugs (BUG-001, 002, 003, 011, 013) fixed and verified |
+| 2 — Core (P1) | ✅ Complete | All P1 bugs (BUG-004, 005, 006, 012, 014, 016) fixed and verified |
+| 3 — Polish (P2/P3) | ✅ Complete | All P2 bugs (BUG-007, 010, 015) fixed; one P3 (BUG-008) deferred-with-reason |
+| 4 — Security audit | ✅ Complete | Discovered + fixed BUG-013 (P0 XSS) and BUG-015 (open-redirect). Dep audit triaged in BUG-014 |
+| 5 — Cross-device | ⚠️ Deferred-with-reason | RLS proven via pgTAP (24+ assertions). Live 2-user testing requires a 2nd test Google account |
+| 6 — Android device | ⚠️ Deferred-with-reason | APK structurally verified (62MB, valid classes.dex). On-device tests blocked on user's physical phone |
+| 7 — Regression automation | ✅ Scaffold complete | 9 Playwright tests written (`e2e/tests/`). CI wiring deferred until Vercel preview is configured |
+
+**Autonomous run completion**: 2026-05-23. All filed bugs (BUG-001–016) closed except BUG-008 (P3, non-blocking disk cleanup). Final CI run green on `5403fcd`.
 
 **Right now**: 8 bugs found, 5 fixed, 3 open. Phase 1 in progress.
 

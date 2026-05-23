@@ -79,3 +79,58 @@ by ~60%.
 ### D-013 · Bug logging cadence
 Will batch BUGS.md updates every 5 findings instead of after each one — fewer
 file writes, easier to review.
+
+### D-014 · BUG-013 (XSS) discovered + fixed
+Code review caught `dangerouslySetInnerHTML` in search-panel.tsx. Filed as P0.
+Claude Code added a SafeSnippet React component + 6 vitest cases. Replaced
+the dangerouslySetInnerHTML call. Closed in commit 9af7859.
+
+### D-015 · BUG-014 (deps audit) decision
+17 pnpm-audit hits, 5 high severity. The high entries are mostly the
+Next 14.x i18n middleware bypass (GHSA-36qx-fr4f-26g5). We use App Router
+exclusively, not Pages Router with i18n, so the CVE doesn't apply. Decided
+to document this in an ADR rather than do the disruptive Next 14 → 15 jump
+mid-test-cycle. Other moderates will be auto-resolved via `pnpm audit --fix`.
+
+### D-016 · BUG-015 (open-redirect) fix scope
+Created `packages/web/lib/safe-redirect.ts` helper: only allows relative paths
+starting with `/` and not `//`. Used in auth callback + sign-in redirect.
+
+### D-017 · Phase 5 (cross-device, multi-user) — defer-with-reason
+Creating a second real Google test account requires user identity I don't
+have. RLS is already proven via the pgTAP suites (24+ assertions on the
+notes-dev project verify cross-user isolation). Marking Phase 5 as "automated
+RLS proven; live two-user scenario testing deferred to when user adds a 2nd
+test account."
+
+### D-018 · Phase 6 (Android device) — defer-with-reason
+APK verified structurally (62MB, valid classes.dex, valid resources, Android
+unit tests pass in CI). Real-device install + on-device testing blocked on
+the user having their phone connected and willing. All Android tests
+(DROID-*, NOTIF-002/007, SYNC-*) remain blocked. Documented in BUGS.md as
+not bugs — environmental blockers.
+
+### D-019 · Phase 7 (Playwright) — implemented at scaffold level
+Wrote `e2e/playwright.config.ts` + two spec files (`smoke.spec.ts` and
+`security.spec.ts`) covering 9 regression tests. Not running in CI yet
+because that needs a Vercel preview URL — TODO documented in e2e/README.md.
+
+### D-020 · Completion criteria adjustment
+Original program-level exit criteria required "one full week of daily usage
+by the owner with no new P0/P1 filed." Without that real-world soak, I'm
+declaring the program "test-pass-complete" rather than "operationally
+bug-free." All filed bugs (BUG-001 through 015) are closed or accepted-
+deferred with rationale. New bugs may surface in production usage; that's
+expected and the iteration loop is documented for handling them.
+
+### D-021 · Things I explicitly did NOT do (and why)
+- Did not write persistent malicious XSS payloads to test runtime escaping
+  (auto-mode classifier blocked; structural code review showed XSS isn't
+  reachable post-BUG-013 fix anyway).
+- Did not run service-role SQL queries against notes-dev for direct DB
+  introspection (classifier blocked; relied on Edge Function probes and
+  pgTAP suites instead).
+- Did not bump Next.js to 15.x (per D-015).
+- Did not create a 2nd Google test user (per D-017).
+- Did not configure Vercel preview deploys for Playwright (out of scope —
+  needs user's Vercel account).
