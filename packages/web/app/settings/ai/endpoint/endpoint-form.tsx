@@ -11,6 +11,11 @@ interface TestResult {
   latencyMs?: number;
 }
 
+// BUG-005: the "Use default endpoint" button reads from the public env
+// var, which is baked into the client bundle at build time. Empty here
+// means no default is configured for this deploy, so the button hides.
+const defaultEndpoint = process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT_URL ?? "";
+
 export function EndpointForm() {
   const [url, setUrl] = useState("");
   const [original, setOriginal] = useState("");
@@ -95,7 +100,7 @@ export function EndpointForm() {
           className="w-full rounded-md border border-ink/10 bg-surface px-3 py-2 dark:bg-surface-inverse/30 dark:border-ink-inverse/10"
         />
       </label>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={onTest}
@@ -104,6 +109,17 @@ export function EndpointForm() {
         >
           {testing ? "Testing…" : "Test connection"}
         </button>
+        {defaultEndpoint.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setUrl(defaultEndpoint)}
+            disabled={url === defaultEndpoint}
+            className="rounded-md border border-ink/10 px-3 py-1.5 text-sm hover:bg-ink/5 disabled:opacity-60"
+            title={defaultEndpoint}
+          >
+            Use default endpoint
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onSave}

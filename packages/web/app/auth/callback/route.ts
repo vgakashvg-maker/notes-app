@@ -34,5 +34,37 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (error !== null) {
     return NextResponse.redirect(new URL("/sign-in?error=exchange", req.url));
   }
+  // BUG-005: seed users_profile.ai_prefs.endpoints.OLLAMA from the
+  // server-side OLLAMA_ENDPOINT_URL on first sign-in so the routing
+  // dropdowns + chat path work immediately instead of showing the
+  // "Set your Ollama endpoint first" warning.
+  await seedDefaultOllamaEndpoint(supabase);
   return res;
+}
+
+async function seedDefaultOllamaEndpoint(
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<void> {
+  const defaultUrl = process.env.OLLAMA_ENDPOINT_URL ?? "";
+  if (defaultUrl.trim().length === 0) return;
+  const { data: profileRow } = await supabase
+    .from("users_profile")
+    .select("ai_prefs")
+    .maybeSingle();
+  if (profileRow === null) return;
+  const aiPrefs = (profileRow.ai_prefs as Record<string, unknown> | null) ?? {};
+  const endpoints =
+    (aiPrefs.endpoints as Record<string, string> | undefined) ?? {};
+  if (typeof endpoints.OLLAMA === "string" && endpoints.OLLAMA.trim().length > 0) {
+    return; // Already set — don't overwrite the user's choice.
+  }
+  const nextPrefs = {
+    ...aiPrefs,
+    version: 1,
+    endpoints: { ...endpoints, OLLAMA: defaultUrl },
+  };
+  await supabase
+    .from("users_profile")
+    .update({ ai_prefs: nextPrefs })
+    .neq("user_id", "00000000-0000-0000-0000-000000000000");
 }
