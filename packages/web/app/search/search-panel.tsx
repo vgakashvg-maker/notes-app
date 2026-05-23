@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "../../lib/supabase/browser";
+import { SnippetText } from "../../lib/search/snippet";
 
 type Mode = "keyword" | "semantic";
 
@@ -102,10 +103,7 @@ export function SearchPanel() {
             <Link href={`/notes/${h.id}`} className="text-sm font-medium hover:underline">
               {h.title || "Untitled"}
             </Link>
-            <p
-              className="mt-1 text-xs text-ink-muted"
-              dangerouslySetInnerHTML={{ __html: h.snippet }}
-            />
+            <SnippetText snippet={h.snippet} className="mt-1 text-xs text-ink-muted" />
           </li>
         ))}
       </ul>
