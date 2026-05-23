@@ -1,4 +1,4 @@
-import type { AIProviderId } from "./enums.js";
+import type { AIProviderId } from "./enums.ts";
 
 /**
  * Canonical task taxonomy for AI routing. Matches the keys M09's

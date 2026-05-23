@@ -33,7 +33,7 @@ be tested without it.
 const adapter = new SupabaseAuthAdapter({
   client: supabase.auth,            // SupabaseAuthClient — structural
   userProfileFetcher,               // (userId, jwt) => Promise<UserProfileRow>
-  refreshProviderTokenUrl: `${SUPABASE_URL}/functions/v1/auth/refresh-provider-token`,
+  refreshProviderTokenUrl: `${SUPABASE_URL}/functions/v1/auth-refresh-provider-token`,
   redirectTo: `${WEB_ORIGIN}/auth/callback`,
 });
 ```

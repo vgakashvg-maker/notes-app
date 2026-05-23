@@ -1,5 +1,5 @@
-import type { TagId, UserId } from "./ids.js";
-import { assertIsoTimestamp } from "./notebook.js";
+import type { TagId, UserId } from "./ids.ts";
+import { assertIsoTimestamp } from "./notebook.ts";
 
 export interface Tag {
   readonly id: TagId;

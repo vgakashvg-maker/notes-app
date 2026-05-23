@@ -1,5 +1,5 @@
-import type { AIProviderId } from "./enums.js";
-import type { ConversationId, NoteId, NotebookId, TagId } from "./ids.js";
+import type { AIProviderId } from "./enums.ts";
+import type { ConversationId, NoteId, NotebookId, TagId } from "./ids.ts";
 
 /**
  * Provider-agnostic AI port. V1 has one implementation

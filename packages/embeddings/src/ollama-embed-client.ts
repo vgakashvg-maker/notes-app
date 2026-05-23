@@ -1,4 +1,4 @@
-import { EMBEDDING_DIMENSION } from "./namespace.js";
+import { EMBEDDING_DIMENSION } from "./namespace.ts";
 
 /**
  * Wire-level port the index-note logic talks to. The Deno entry under

@@ -6,7 +6,7 @@ import { SseParser, type ChatEvent } from "../lib/chat/sse";
 import { splitWithCitations, type CitationEntry } from "../lib/chat/citations";
 
 export interface ChatStreamProps {
-  /** ReadableStream returned by `fetch('/functions/v1/ai/chat')`. */
+  /** ReadableStream returned by `fetch('/functions/v1/ai-chat')`. */
   stream: ReadableStream<Uint8Array> | null;
   /** Called on the terminal `done` event. */
   onDone?: (event: Extract<ChatEvent, { kind: "done" }>) => void;

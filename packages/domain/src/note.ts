@@ -1,6 +1,6 @@
-import type { NoteId, NotebookId, TagId, UserId } from "./ids.js";
-import type { AttachmentRef } from "./attachment.js";
-import { assertIsoTimestamp } from "./notebook.js";
+import type { NoteId, NotebookId, TagId, UserId } from "./ids.ts";
+import type { AttachmentRef } from "./attachment.ts";
+import { assertIsoTimestamp } from "./notebook.ts";
 
 export interface Note {
   readonly id: NoteId;

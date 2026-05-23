@@ -199,7 +199,7 @@ select cron.schedule(
     '0 8 * * *',
     $$
         select net.http_post(
-            url := coalesce(current_setting('app.settings.supabase_url', true), '') || '/functions/v1/ai/briefing',
+            url := coalesce(current_setting('app.settings.supabase_url', true), '') || '/functions/v1/ai-briefing',
             headers := jsonb_build_object(
                 'Content-Type', 'application/json',
                 'Authorization', 'Bearer ' || coalesce(current_setting('app.settings.service_role_key', true), '')

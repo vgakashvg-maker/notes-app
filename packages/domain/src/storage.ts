@@ -1,4 +1,4 @@
-import type { StorageProviderId } from "./enums.js";
+import type { StorageProviderId } from "./enums.ts";
 
 /**
  * The cross-cutting storage port. Concrete adapters

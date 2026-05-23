@@ -9,7 +9,7 @@ import {
 } from "../supabase-auth-adapter.js";
 import { GOOGLE_SCOPES } from "../types.js";
 
-const REFRESH_URL = "https://example.supabase.co/functions/v1/auth/refresh-provider-token";
+const REFRESH_URL = "https://example.supabase.co/functions/v1/auth-refresh-provider-token";
 
 const PROFILE_ROW: UserProfileRow = {
   user_id: "550e8400-e29b-41d4-a716-446655440000",

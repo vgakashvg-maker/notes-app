@@ -6,7 +6,7 @@ import {
   type RemoteFile,
   type StorageProvider,
   type StorageProviderId,
-} from "@notes-app/domain";
+} from "../../domain/src/index.ts";
 import { DEFAULT_BACKOFF, retry, type BackoffConfig } from "./backoff.js";
 import type { DriveHttpClient, DriveListMatch } from "./drive-http.js";
 

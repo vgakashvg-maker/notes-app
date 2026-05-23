@@ -7,7 +7,7 @@ import type {
   Message,
   ModelDescriptor,
   ProviderHealth,
-} from "@notes-app/domain";
+} from "../../domain/src/index.ts";
 
 /**
  * Structural slice of Ollama's REST surface the adapter uses. The Deno

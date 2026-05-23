@@ -1,5 +1,5 @@
-import type { AIProvider, Message, SummaryLength } from "@notes-app/domain";
-import { staticRouter, type Router, type AITask } from "./routing.js";
+import type { AIProvider, Message, SummaryLength } from "../../domain/src/index.ts";
+import { staticRouter, type Router, type AITask } from "./routing.ts";
 
 /**
  * Per-task one-shot functions. Each takes a prompt source (as a parsed

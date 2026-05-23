@@ -35,7 +35,7 @@ class ChatStreamSource(
     ): Flow<ChatEvent> = flow {
         if (message.isBlank()) return@flow
         val parser = SseParser(json)
-        http.preparePost("$supabaseUrl/functions/v1/ai/chat") {
+        http.preparePost("$supabaseUrl/functions/v1/ai-chat") {
             applyRequest(jwt, message, conversationId)
         }.execute { response ->
             val channel: ByteReadChannel = response.bodyAsChannel()

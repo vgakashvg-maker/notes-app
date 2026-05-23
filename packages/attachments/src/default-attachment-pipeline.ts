@@ -8,7 +8,7 @@ import {
   type NoteId,
   type Progress,
   type StorageProvider,
-} from "@notes-app/domain";
+} from "../../domain/src/index.ts";
 import { ProgressBus } from "./progress-bus.js";
 import type { AttachmentsRepo, ThumbnailGenerator } from "./ports.js";
 

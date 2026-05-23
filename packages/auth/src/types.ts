@@ -1,5 +1,5 @@
-import type { ExternalProviderId } from "@notes-app/domain";
-import type { User } from "@notes-app/domain";
+import type { ExternalProviderId } from "../../domain/src/index.ts";
+import type { User } from "../../domain/src/index.ts";
 
 /**
  * Outcome of an interactive sign-in attempt. The Cancelled / Error split

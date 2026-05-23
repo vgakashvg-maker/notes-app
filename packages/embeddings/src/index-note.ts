@@ -1,6 +1,6 @@
-import { chunkText, plainTextFromProseMirror, type Chunk } from "./chunker.js";
-import { assertNamespace, EMBEDDING_DIMENSION } from "./namespace.js";
-import type { OllamaEmbedClient } from "./ollama-embed-client.js";
+import { chunkText, plainTextFromProseMirror, type Chunk } from "./chunker.ts";
+import { assertNamespace, EMBEDDING_DIMENSION } from "./namespace.ts";
+import type { OllamaEmbedClient } from "./ollama-embed-client.ts";
 
 /**
  * Pure-logic backing for the `embeddings/index` Edge Function.

@@ -28,7 +28,7 @@ export function ChatPanel() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/chat`;
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-chat`;
         const res = await fetch(url, {
           method: "POST",
           headers: {

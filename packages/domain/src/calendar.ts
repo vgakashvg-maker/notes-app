@@ -1,7 +1,7 @@
-import type { UserId } from "./ids.js";
-import type { CalendarProviderId } from "./enums.js";
-import { CalendarProviderIds } from "./enums.js";
-import { assertIsoTimestamp } from "./notebook.js";
+import type { UserId } from "./ids.ts";
+import type { CalendarProviderId } from "./enums.ts";
+import { CalendarProviderIds } from "./enums.ts";
+import { assertIsoTimestamp } from "./notebook.ts";
 
 export interface CalendarEvent {
   readonly ownerId: UserId;

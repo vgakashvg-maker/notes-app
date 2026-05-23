@@ -42,7 +42,7 @@ export function SearchPanel() {
           })),
         );
       } else {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/related`;
+        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-related`;
         const supabase = getSupabaseBrowserClient();
         const {
           data: { session },

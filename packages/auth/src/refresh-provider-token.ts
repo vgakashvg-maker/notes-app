@@ -1,4 +1,4 @@
-import { ExternalProviderIds, type ExternalProviderId } from "@notes-app/domain";
+import { ExternalProviderIds, type ExternalProviderId } from "../../domain/src/index.ts";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 

@@ -1,4 +1,4 @@
-import type { NotebookId, UserId } from "./ids.js";
+import type { NotebookId, UserId } from "./ids.ts";
 
 export interface Notebook {
   readonly id: NotebookId;

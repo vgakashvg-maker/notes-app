@@ -1,4 +1,4 @@
-import { DEFAULT_NAMESPACE, EMBEDDING_DIMENSION } from "./namespace.js";
+import { DEFAULT_NAMESPACE, EMBEDDING_DIMENSION } from "./namespace.ts";
 
 /**
  * Wrapper around the SQL `vector_search()` function. Client code passes
@@ -11,7 +11,7 @@ import { DEFAULT_NAMESPACE, EMBEDDING_DIMENSION } from "./namespace.js";
  * queries when it lands.
  */
 
-import type { OllamaEmbedClient } from "./ollama-embed-client.js";
+import type { OllamaEmbedClient } from "./ollama-embed-client.ts";
 
 export interface VectorSearchFilters {
   readonly notebookIds?: readonly string[];

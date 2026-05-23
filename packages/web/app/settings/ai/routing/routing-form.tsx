@@ -68,7 +68,7 @@ export function RoutingForm() {
     } = await supabase.auth.getSession();
     try {
       const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/test-connection`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-test-connection`,
         {
           method: "POST",
           headers: {
@@ -147,7 +147,7 @@ export function RoutingForm() {
     } = await supabase.auth.getSession();
     try {
       const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/reindex`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-reindex`,
         {
           method: "POST",
           headers: {

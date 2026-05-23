@@ -5,9 +5,9 @@ import type {
   Message,
   NoteId,
   NoteScope,
-} from "@notes-app/domain";
-import { DEFAULT_NAMESPACE, type OllamaEmbedClient } from "@notes-app/embeddings";
-import { staticRouter, type Router } from "./routing.js";
+} from "../../domain/src/index.ts";
+import { DEFAULT_NAMESPACE, type OllamaEmbedClient } from "../../embeddings/src/index.ts";
+import { staticRouter, type Router } from "./routing.ts";
 
 /**
  * RAG chat pipeline. Composes:

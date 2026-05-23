@@ -1,4 +1,4 @@
-import type { NoteId } from "./ids.js";
+import type { NoteId } from "./ids.ts";
 
 export type StorageProviderId = "GOOGLE_DRIVE" | "ONEDRIVE";
 export const StorageProviderIds: readonly StorageProviderId[] = ["GOOGLE_DRIVE", "ONEDRIVE"];

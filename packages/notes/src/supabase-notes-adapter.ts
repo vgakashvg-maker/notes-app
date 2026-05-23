@@ -1,4 +1,4 @@
-import type { Note, NoteId, Notebook, NotebookId, Tag, TagId } from "@notes-app/domain";
+import type { Note, NoteId, Notebook, NotebookId, Tag, TagId } from "../../domain/src/index.ts";
 import { rowToNote, rowToNotebook, rowToTag, type NoteRow } from "./rows.js";
 import { NotesNotFoundError, type NotesHttp } from "./notes-http.js";
 import type {

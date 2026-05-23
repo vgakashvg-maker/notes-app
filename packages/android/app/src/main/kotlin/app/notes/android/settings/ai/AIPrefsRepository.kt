@@ -84,7 +84,7 @@ class AIPrefsRepository @Inject constructor(
 
     suspend fun testConnection(url: String): TestConnectionResult {
         val jwt = auth.token.value ?: return TestConnectionResult(ok = false, error = "not signed in")
-        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/ai/test-connection") {
+        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/ai-test-connection") {
             contentType(ContentType.Application.Json)
             headers { append(HttpHeaders.Authorization, "Bearer $jwt") }
             setBody(json.encodeToString(JsonObject.serializer(), buildJsonObject {
@@ -106,7 +106,7 @@ class AIPrefsRepository @Inject constructor(
 
     suspend fun reindex(): ReindexResult {
         val jwt = auth.token.value ?: return ReindexResult(ok = false)
-        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/ai/reindex") {
+        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/ai-reindex") {
             headers {
                 append(HttpHeaders.Authorization, "Bearer $jwt")
                 append(HttpHeaders.ContentType, "application/json")
@@ -121,7 +121,7 @@ class AIPrefsRepository @Inject constructor(
 
     suspend fun fetchUsage(days: Int = 14): UsagePayload? {
         val jwt = auth.token.value ?: return null
-        val resp: HttpResponse = http.get("$supabaseUrl/functions/v1/ai/usage?days=$days") {
+        val resp: HttpResponse = http.get("$supabaseUrl/functions/v1/ai-usage?days=$days") {
             headers { append(HttpHeaders.Authorization, "Bearer $jwt") }
         }
         if (!resp.status.isSuccess()) return null

@@ -13,7 +13,7 @@ import {
   type Notebook,
   type StorageProviderId,
   type Tag,
-} from "@notes-app/domain";
+} from "../../domain/src/index.ts";
 
 /**
  * PostgREST row shapes. Hand-written for V1; once a real Supabase project

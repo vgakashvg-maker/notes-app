@@ -1,4 +1,4 @@
-import type { EmbeddingChunkId, NoteId, UserId } from "./ids.js";
+import type { EmbeddingChunkId, NoteId, UserId } from "./ids.ts";
 
 export interface EmbeddingChunk {
   readonly id: EmbeddingChunkId;

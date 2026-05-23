@@ -1,4 +1,4 @@
-import type { NoteId, UserId } from "./ids.js";
+import type { NoteId, UserId } from "./ids.ts";
 
 /** Opaque id for a scheduled reminder row in `public.reminders`. */
 export type ReminderId = string & { readonly __brand: "ReminderId" };

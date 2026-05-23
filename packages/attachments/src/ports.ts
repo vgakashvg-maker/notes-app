@@ -1,4 +1,4 @@
-import type { AttachmentId, AttachmentRef, FileInput, NoteId } from "@notes-app/domain";
+import type { AttachmentId, AttachmentRef, FileInput, NoteId } from "../../domain/src/index.ts";
 
 /**
  * Insert / delete on `attachments_refs`. The production binding wraps

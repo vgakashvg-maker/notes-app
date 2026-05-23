@@ -8,9 +8,9 @@ import type {
   ExternalEventId,
   NewEventInput,
   UserId,
-} from "@notes-app/domain";
-import { makeCalendarEvent } from "@notes-app/domain";
-import type { CalendarHttp, RawEvent } from "./types.js";
+} from "../../domain/src/index.ts";
+import { makeCalendarEvent } from "../../domain/src/index.ts";
+import type { CalendarHttp, RawEvent } from "./types.ts";
 
 export interface GoogleCalendarAdapterOptions {
   readonly http: CalendarHttp;

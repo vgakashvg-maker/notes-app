@@ -1,6 +1,6 @@
-import type { AttachmentId, NoteId, UserId } from "./ids.js";
-import type { StorageProviderId } from "./enums.js";
-import { StorageProviderIds } from "./enums.js";
+import type { AttachmentId, NoteId, UserId } from "./ids.ts";
+import type { StorageProviderId } from "./enums.ts";
+import { StorageProviderIds } from "./enums.ts";
 
 export interface AttachmentRef {
   readonly id: AttachmentId;

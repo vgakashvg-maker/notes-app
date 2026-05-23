@@ -25,3 +25,4 @@ packages/android/local.properties
 
 # Supabase CLI per-checkout cache (linked-project.json, postgres-version, …)
 supabase/.temp/
+**/supabase/.temp/

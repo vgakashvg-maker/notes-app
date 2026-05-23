@@ -1,4 +1,4 @@
-import type { CalendarEvent, CalendarProviderId } from "@notes-app/domain";
+import type { CalendarEvent, CalendarProviderId } from "../../domain/src/index.ts";
 
 /**
  * A row from `events_mirror` as it arrives from PostgREST. Snake-cased

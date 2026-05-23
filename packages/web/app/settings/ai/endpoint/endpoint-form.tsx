@@ -39,7 +39,7 @@ export function EndpointForm() {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    const target = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/test-connection`;
+    const target = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-test-connection`;
     try {
       const resp = await fetch(target, {
         method: "POST",

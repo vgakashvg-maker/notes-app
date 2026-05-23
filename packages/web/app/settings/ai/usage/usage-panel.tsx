@@ -34,7 +34,7 @@ export function UsagePanel() {
       } = await supabase.auth.getSession();
       try {
         const resp = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai/usage?days=14`,
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/functions/v1/ai-usage?days=14`,
           {
             headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
           },

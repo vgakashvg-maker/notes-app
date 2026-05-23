@@ -1,6 +1,6 @@
-import type { UserId } from "./ids.js";
-import type { AIProviderId, CalendarProviderId, StorageProviderId } from "./enums.js";
-import { AIProviderIds, CalendarProviderIds, StorageProviderIds } from "./enums.js";
+import type { UserId } from "./ids.ts";
+import type { AIProviderId, CalendarProviderId, StorageProviderId } from "./enums.ts";
+import { AIProviderIds, CalendarProviderIds, StorageProviderIds } from "./enums.ts";
 
 export interface AIPreferences {
   readonly chatProvider: AIProviderId;

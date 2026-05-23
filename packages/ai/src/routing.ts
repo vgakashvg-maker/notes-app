@@ -10,9 +10,14 @@
  * `nomic-embed-text` to match the M10 namespace.
  */
 
-import type { AIProviderId, AITask, AdapterBinding, RoutingConfig } from "@notes-app/domain";
+import type {
+  AIProviderId,
+  AITask,
+  AdapterBinding,
+  RoutingConfig,
+} from "../../domain/src/index.ts";
 
-export type { AITask } from "@notes-app/domain";
+export type { AITask } from "../../domain/src/index.ts";
 
 export interface Route {
   readonly provider: AIProviderId;

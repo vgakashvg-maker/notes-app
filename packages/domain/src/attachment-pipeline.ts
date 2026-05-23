@@ -1,6 +1,6 @@
-import type { AttachmentRef } from "./attachment.js";
-import type { FileInput } from "./storage.js";
-import type { NoteId } from "./ids.js";
+import type { AttachmentRef } from "./attachment.ts";
+import type { FileInput } from "./storage.ts";
+import type { NoteId } from "./ids.ts";
 
 /**
  * The attachment pipeline port. Bridges the editor's

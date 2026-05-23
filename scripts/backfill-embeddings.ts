@@ -64,7 +64,7 @@ async function listNotePage(
 }
 
 async function indexOne(config: Config, noteId: string): Promise<void> {
-  const resp = await fetch(`${config.supabaseUrl}/functions/v1/embeddings/index`, {
+  const resp = await fetch(`${config.supabaseUrl}/functions/v1/embeddings-index`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.serviceRoleKey}`,

@@ -1,4 +1,4 @@
-import type { AttachmentId, Progress } from "@notes-app/domain";
+import type { AttachmentId, Progress } from "../../domain/src/index.ts";
 
 /**
  * Tiny pub/sub for upload progress events keyed by attachment id. Each

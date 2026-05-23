@@ -67,7 +67,7 @@ class CalendarRepository @Inject constructor(
         val startIso = today.atStartOfDay(zone).format(DateTimeFormatter.ISO_INSTANT)
         val endIso = today.plusDays(7).atStartOfDay(zone).format(DateTimeFormatter.ISO_INSTANT)
         val payload = """{"rangeStart":"$startIso","rangeEnd":"$endIso"}"""
-        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/calendar/sync") {
+        val resp: HttpResponse = http.post("$supabaseUrl/functions/v1/calendar-sync") {
             contentType(ContentType.Application.Json)
             headers { append(HttpHeaders.Authorization, "Bearer $jwt") }
             setBody(payload)

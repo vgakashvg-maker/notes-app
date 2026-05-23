@@ -1,4 +1,12 @@
-import type { Note, Notebook, NotebookId, NoteId, Tag, TagId, UserId } from "@notes-app/domain";
+import type {
+  Note,
+  Notebook,
+  NotebookId,
+  NoteId,
+  Tag,
+  TagId,
+  UserId,
+} from "../../domain/src/index.ts";
 
 export interface NewNoteInput {
   readonly ownerId: UserId;

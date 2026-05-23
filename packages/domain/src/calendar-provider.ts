@@ -1,6 +1,6 @@
-import type { NoteId } from "./ids.js";
-import type { CalendarEvent } from "./calendar.js";
-import type { CalendarProviderId } from "./enums.js";
+import type { NoteId } from "./ids.ts";
+import type { CalendarEvent } from "./calendar.ts";
+import type { CalendarProviderId } from "./enums.ts";
 
 /** Opaque id for an event on the external provider (e.g. Google's event.id). */
 export type ExternalEventId = string & { readonly __brand: "ExternalEventId" };

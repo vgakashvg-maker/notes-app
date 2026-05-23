@@ -1,4 +1,4 @@
-import type { ExternalProviderId } from "@notes-app/domain";
+import type { ExternalProviderId } from "../../domain/src/index.ts";
 import {
   makeUser,
   UserId,
@@ -6,7 +6,7 @@ import {
   type CalendarProviderId,
   type StorageProviderId,
   type User,
-} from "@notes-app/domain";
+} from "../../domain/src/index.ts";
 import { AuthResult, GOOGLE_SCOPES, type AuthProvider, type Unsubscribe } from "./types.js";
 
 /** A minimal, structural mirror of the bits of @supabase/supabase-js we use. */

@@ -159,7 +159,7 @@ begin
     -- namespace, chunk_index)) so a duplicate enqueue is harmless.
     begin
         perform net.http_post(
-            url := supabase_url || '/functions/v1/embeddings/index',
+            url := supabase_url || '/functions/v1/embeddings-index',
             headers := jsonb_build_object(
                 'Content-Type', 'application/json',
                 'Authorization', 'Bearer ' || service_key
