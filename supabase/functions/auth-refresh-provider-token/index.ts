@@ -26,11 +26,12 @@ declare const Deno: {
   serve(handler: (req: Request) => Response | Promise<Response>): void;
 };
 
-const SUPABASE_URL = mustEnv("SUPABASE_URL");
-const SERVICE_ROLE_KEY = mustEnv("SUPABASE_SERVICE_ROLE_KEY");
-const GOOGLE_CLIENT_ID = mustEnv("GOOGLE_CLIENT_ID");
-const GOOGLE_CLIENT_SECRET = mustEnv("GOOGLE_CLIENT_SECRET");
-
+// BUG-012: env reads happen lazily inside the handler. Doing them at
+// module load would throw on a missing GOOGLE_CLIENT_ID before
+// corsServe could register, and the runtime would 500 the OPTIONS
+// preflight — breaking CORS for every browser caller. Lazy reads also
+// let unrelated POSTs (where a missing env IS a real error) return a
+// structured 503 instead of a worker crash.
 const PROVIDER_TO_COLUMN: Record<ExternalProviderId, string> = {
   GOOGLE_DRIVE: "google_drive_refresh_token",
   GOOGLE_CALENDAR: "google_calendar_refresh_token",
@@ -42,7 +43,13 @@ corsServe(async (req: Request) => {
     return jsonError(405, "ERR_METHOD_NOT_ALLOWED", "Only POST is allowed.");
   }
 
-  const userId = await resolveUserId(req);
+  // Read env per-request. Missing env is a 503, not a worker crash.
+  const env = readEnv();
+  if (!env.ok) {
+    return jsonError(503, "ERR_NOT_CONFIGURED", env.message);
+  }
+
+  const userId = await resolveUserId(req, env.value);
   if (userId === null) {
     return jsonError(401, "ERR_UNAUTHENTICATED", "Missing or invalid bearer token.");
   }
@@ -61,7 +68,7 @@ corsServe(async (req: Request) => {
 
   const result = await refreshProviderToken(userId, request, {
     fetcher: fetch,
-    lookupRefreshToken: lookupRefreshTokenForUser,
+    lookupRefreshToken: (uid, provider) => lookupRefreshTokenForUser(uid, provider, env.value),
   });
 
   if (!result.ok) {
@@ -76,15 +83,44 @@ corsServe(async (req: Request) => {
   });
 });
 
-function mustEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (value === undefined || value.length === 0) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
+interface Env {
+  readonly supabaseUrl: string;
+  readonly serviceRoleKey: string;
+  readonly googleClientId: string;
+  readonly googleClientSecret: string;
 }
 
-async function resolveUserId(req: Request): Promise<string | null> {
+type EnvResult = { ok: true; value: Env } | { ok: false; message: string };
+
+function readEnv(): EnvResult {
+  const required = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+  ] as const;
+  const missing: string[] = [];
+  const values: Record<string, string> = {};
+  for (const name of required) {
+    const v = Deno.env.get(name);
+    if (v === undefined || v.length === 0) missing.push(name);
+    else values[name] = v;
+  }
+  if (missing.length > 0) {
+    return { ok: false, message: `Missing env: ${missing.join(", ")}` };
+  }
+  return {
+    ok: true,
+    value: {
+      supabaseUrl: values.SUPABASE_URL!,
+      serviceRoleKey: values.SUPABASE_SERVICE_ROLE_KEY!,
+      googleClientId: values.GOOGLE_CLIENT_ID!,
+      googleClientSecret: values.GOOGLE_CLIENT_SECRET!,
+    },
+  };
+}
+
+async function resolveUserId(req: Request, env: Env): Promise<string | null> {
   const header = req.headers.get("Authorization");
   if (header === null || !header.toLowerCase().startsWith("bearer ")) return null;
   const jwt = header.slice("bearer ".length).trim();
@@ -92,10 +128,10 @@ async function resolveUserId(req: Request): Promise<string | null> {
   // Supabase exposes the GoTrue user lookup endpoint; using it (instead of
   // verifying the JWT ourselves) sidesteps the need to ship the JWT secret
   // to this function.
-  const resp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+  const resp = await fetch(`${env.supabaseUrl}/auth/v1/user`, {
     headers: {
       Authorization: `Bearer ${jwt}`,
-      apikey: SERVICE_ROLE_KEY,
+      apikey: env.serviceRoleKey,
     },
   });
   if (!resp.ok) return null;
@@ -106,14 +142,15 @@ async function resolveUserId(req: Request): Promise<string | null> {
 async function lookupRefreshTokenForUser(
   userId: string,
   provider: ExternalProviderId,
+  env: Env,
 ): Promise<RefreshTokenRecord | null> {
   const column = PROVIDER_TO_COLUMN[provider];
   const resp = await fetch(
-    `${SUPABASE_URL}/rest/v1/users_profile?user_id=eq.${userId}&select=${column}`,
+    `${env.supabaseUrl}/rest/v1/users_profile?user_id=eq.${userId}&select=${column}`,
     {
       headers: {
-        apikey: SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        apikey: env.serviceRoleKey,
+        Authorization: `Bearer ${env.serviceRoleKey}`,
         "Content-Type": "application/json",
         // PostgREST decrypts the bytea column for us when the service role
         // has the pgsodium key in scope; see the migration.
@@ -126,8 +163,8 @@ async function lookupRefreshTokenForUser(
   if (typeof raw !== "string" || raw.length === 0) return null;
   return {
     refreshToken: raw,
-    clientId: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
+    clientId: env.googleClientId,
+    clientSecret: env.googleClientSecret,
   };
 }
 
