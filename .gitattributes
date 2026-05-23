@@ -1,0 +1,37 @@
+# BUG-010 — silence Windows "LF will be replaced by CRLF" warnings on
+# every commit. All text files normalise to LF in the repo; checkouts
+# on Windows are still rendered with the user's native autocrlf
+# setting on disk if they want it, but the stored blob is LF.
+
+* text=auto eol=lf
+
+# Lock binary asset types to "no normalisation" so the rule above
+# doesn't accidentally try to LF-ify them.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.tgz       binary
+*.jar       binary
+*.aar       binary
+*.apk       binary
+*.aab       binary
+*.keystore  binary
+*.so        binary
+*.dll       binary
+*.dylib     binary
+*.bin       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.eot       binary
+
+# Shell scripts must stay LF even on Windows; explicit for clarity.
+*.sh        text eol=lf
+gradlew     text eol=lf
