@@ -23,6 +23,17 @@
 
 > Fix order: P0 → P1 → P2 → P3.
 
+### 🟠 BUG-012 · P1 · `auth-refresh-provider-token` Edge Function crashes on OPTIONS preflight
+
+- **Found by**: Phase 1 API sweep · 2026-05-23
+- **Symptom**: OPTIONS request to `/functions/v1/auth-refresh-provider-token` returns HTTP 500 with `sb-error-code: WORKER_ERROR`. All other 16 Edge Functions return 204 correctly.
+- **Repro**: `curl -X OPTIONS https://poygaxjdflacpbcygpqe.supabase.co/functions/v1/auth-refresh-provider-token` → 500
+- **Impact**: Any browser-originated POST to this function will fail CORS preflight. Means Google Drive/Calendar token refresh from web client is broken — sessions will silently lose their provider access after ~1 hour.
+- **Root cause hypothesis**: The function imports a module that throws at evaluation time before the OPTIONS branch runs. Most likely a missing env var (`GOOGLE_CLIENT_SECRET` or similar) being read at top-of-file with no fallback.
+- **Proposed fix**: Move env reads inside the handler, wrap top-level imports in try/catch, ensure OPTIONS returns 204 before any business logic runs. Same pattern as the other 16 functions that now work.
+- **Owner**: Claude Code (will batch with other P1 fixes)
+- **Status**: 🟠 open
+
 ### 🟠 BUG-007 · P2 · Today view has no "Sync calendar now" button
 
 - **Found by**: CAL-002 visual inspection · 2026-05-22
