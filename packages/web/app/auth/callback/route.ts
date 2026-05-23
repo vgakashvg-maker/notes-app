@@ -1,13 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { safeRedirectTarget } from "../../../lib/safe-redirect";
 
 /**
  * OAuth callback. Supabase redirects here with a `code` query param; we
  * exchange it for a session and drop the user back where they came from.
+ *
+ * BUG-015: `?next=` is caller-controlled and used as the post-sign-in
+ * target. `safeRedirectTarget` rejects protocol-relative and
+ * absolute-URL values so a hostile link can't steer freshly-signed-in
+ * users (with our session cookie attached) to evil.com.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const code = req.nextUrl.searchParams.get("code");
-  const next = req.nextUrl.searchParams.get("next") ?? "/";
+  const next = safeRedirectTarget(req.nextUrl.searchParams.get("next"));
   if (code === null) {
     return NextResponse.redirect(new URL("/sign-in", req.url));
   }
@@ -53,8 +59,7 @@ async function seedDefaultOllamaEndpoint(
     .maybeSingle();
   if (profileRow === null) return;
   const aiPrefs = (profileRow.ai_prefs as Record<string, unknown> | null) ?? {};
-  const endpoints =
-    (aiPrefs.endpoints as Record<string, string> | undefined) ?? {};
+  const endpoints = (aiPrefs.endpoints as Record<string, string> | undefined) ?? {};
   if (typeof endpoints.OLLAMA === "string" && endpoints.OLLAMA.trim().length > 0) {
     return; // Already set — don't overwrite the user's choice.
   }

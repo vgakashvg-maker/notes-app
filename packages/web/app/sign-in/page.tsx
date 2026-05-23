@@ -1,7 +1,8 @@
 import { SignInButton } from "./sign-in-button";
+import { safeRedirectTarget } from "../../lib/safe-redirect";
 
 export default function SignInPage({ searchParams }: { searchParams: { redirectTo?: string } }) {
-  const redirectTo = searchParams.redirectTo ?? "/";
+  const redirectTo = safeRedirectTarget(searchParams.redirectTo);
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 pt-24">
       <header className="space-y-1">
