@@ -73,16 +73,20 @@ corsServe(async (req: Request) => {
         upsertEmbeddings: (id, ns, rows) => upsertEmbeddings(id, ns, rows),
       },
     );
+    // Success path — clear any pending retry so the cron stops
+    // touching this note. Best-effort; non-2xx is non-fatal.
+    await clearRetry(noteId);
     return new Response(JSON.stringify({ ok: true, data: summary }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (cause) {
-    return jsonError(
-      502,
-      "ERR_UPSTREAM",
-      cause instanceof Error ? cause.message : "Embedding failed",
-    );
+    // BUG-006 hardening: enqueue a retry instead of silently dropping.
+    // m10_embedding_retry cron picks the row back up every 15 min and
+    // re-fires notes_embed_trigger by touching the note.
+    const message = cause instanceof Error ? cause.message : "Embedding failed";
+    await enqueueRetry(noteId, namespace, message);
+    return jsonError(502, "ERR_UPSTREAM", message);
   }
 });
 
@@ -177,6 +181,67 @@ function jsonError(status: number, code: string, message: string): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * BUG-006 — record an embedding failure so the m10_embedding_retry
+ * pg_cron job can pick it up. Best-effort; we don't want the retry
+ * book-keeping itself to fail the request and confuse the trigger.
+ * Owner is required by the schema; we fetch it from the note row.
+ */
+async function enqueueRetry(noteId: string, namespace: string, message: string): Promise<void> {
+  try {
+    const ownerResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/notes?select=owner_id&id=eq.${encodeURIComponent(noteId)}`,
+      {
+        headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      },
+    );
+    if (!ownerResp.ok) return;
+    const [row] = (await ownerResp.json()) as Array<{ owner_id: string }>;
+    if (row === undefined) return;
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/embedding_retries?on_conflict=note_id`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify([
+          {
+            note_id: noteId,
+            owner_id: row.owner_id,
+            namespace,
+            last_error: message.slice(0, 500),
+            next_attempt_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          },
+        ]),
+      },
+    );
+  } catch {
+    // Swallow — bookkeeping failure must not surface to the caller.
+  }
+}
+
+async function clearRetry(noteId: string): Promise<void> {
+  try {
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/embedding_retries?note_id=eq.${encodeURIComponent(noteId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+          Prefer: "return=minimal",
+        },
+      },
+    );
+  } catch {
+    // Same — bookkeeping must not surface.
+  }
 }
 
 /**
