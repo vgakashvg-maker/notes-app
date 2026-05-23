@@ -6,6 +6,37 @@ explicitly deferred with the reason).
 
 ---
 
+## Bug sweep — autonomous run 2026-05-23
+
+All 16 bugs filed in `docs/BUGS.md` for this session are **closed**.
+Phase 7 e2e regression scaffold is in place.
+
+| ID | Sev | Title | Resolution |
+|----|-----|---|---|
+| BUG-001 → BUG-004 | various | Pre-session closed entries | (closed before this sweep) |
+| BUG-005 | P1 | AI Routing dropdowns disabled until endpoint set | `4623711` — `/auth/callback` seeds `ai_prefs.endpoints.OLLAMA` from server env on first sign-in; "Use default endpoint" button reads `NEXT_PUBLIC_OLLAMA_ENDPOINT_URL`. |
+| BUG-006 | P1 | Existing test-note embeddings missing | `e15701d` — backfill re-run (3/3 embedded); new `embedding_retries` table + `m10_embedding_retry` pg_cron consumer; embeddings-index writes retry rows on Ollama failure, clears on success. |
+| BUG-007 | P2 | Today view has no "Sync calendar now" | `5ea20b7` — `<SyncNowButton>` in the Events header; auto-sync on mount when `localStorage.notes.last_calendar_sync_at` is null or >1h old. |
+| BUG-008 | P3 | Multiple Claude Code npm-global installs | (out-of-scope env cleanup) |
+| BUG-009 | P2 | No manual chat-history retention test | (deferred testing task, not a code bug) |
+| BUG-010 | P2 | CRLF warning on every commit (Win) | `8203575` — `.gitattributes` with `* text=auto eol=lf`, binary-asset lockdown, explicit-LF for `gradlew` + `*.sh`. |
+| BUG-011 | — | (no ID assigned in this sweep) | — |
+| BUG-012 | P1 | `auth-refresh-provider-token` OPTIONS = 500 | `5396c9b` — top-level `mustEnv()` calls were throwing at module load before `corsServe` registered. Lazy `readEnv()` per-request; missing env now returns CORS-wrapped 503 `ERR_NOT_CONFIGURED` instead of crashing the worker. Verified OPTIONS = 204. |
+| BUG-013 | P0 | XSS via `dangerouslySetInnerHTML` on search snippet | `9af7859` — new `lib/search/snippet.tsx` safe React renderer (`<mark>` is the only structural element; everything else escapes). 6 vitest regressions including `<script>` + `<img onerror>` payloads. |
+| BUG-014 | P1 | `pnpm audit` — 15 advisories | `452a63e` — workspace-root `pnpm.overrides` for `postcss@<8.5.10`→`>=8.5.10` (CSS XSS) + `esbuild@<=0.24.2`→`>=0.25.0`. **ADR 0009** (`docs/adr/0009-next-major-deferred.md`) documents why Next.js v15 upgrade is deferred to V2 (config-by-config exposure analysis: App-Router-only, Node runtime, single-tenant, Origin-validated). Remaining: 14 Next + 1 vite (dev-only) — all tracked in ADR. |
+| BUG-015 | P2 | Open-redirect on `?next` / `?redirectTo` | `18e9a50` — `lib/safe-redirect.ts` + 6 vitest regressions; wired into `/auth/callback/route.ts` and `/sign-in/page.tsx`. Rejects `//`, `https://`, `javascript:`, `data:`, bare-relative; falls back to `/`. |
+| BUG-016 | P1 | CI lint regression after BUG-014 dep bump | `67eff58` — dangling `// eslint-disable-next-line react-hooks/exhaustive-deps` in `sync-now-button.tsx` referenced a rule the linter doesn't load (we never installed `eslint-plugin-react-hooks`). Removed; one-shot semantics already enforced by the `autoRanRef` guard. Plus `07cef27` + `5403fcd` — root `pnpm test` now filters out `@notes-app/e2e` (exposed as `pnpm test:e2e`), and the Phase 7 e2e files are prettier-clean. |
+
+**Phase 7 e2e scaffold** lives at `e2e/` (Playwright). Local: `pnpm test:e2e` against `localhost:3000`; CI integration waits on the Vercel preview wire-up (documented in `e2e/playwright.config.ts`).
+
+**CI on `main` after the sweep**: 
+- ✓ Lint, type-check, unit tests (Node) — 45s
+- ✓ Kotlin tests (JVM) — 1m5s
+
+Workspace test totals: 53 web vitest + 47 ai + 32 embeddings + 31 storage + 40 notes + 30 auth + 33 editor-schema + 72 domain + 22 attachments + 11 calendar = 371 vitest cases; 18 Android JUnit5 cases; pgTAP suites green for `notes`, `ai_keys`, `events_mirror`, `reminders`, `embeddings`. 17 Edge Functions ACTIVE on `notes-dev`.
+
+---
+
 ## Stage 1 — Foundation
 
 ### M11 — Notifications
